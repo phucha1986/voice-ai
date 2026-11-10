@@ -7,7 +7,7 @@ from types import SimpleNamespace
 import numpy as np
 import soundfile as sf
 
-from app.config import TARGET_SAMPLE_RATE
+from app.config import TARGET_SAMPLE_RATE, VIENEU_ENABLED
 from app.engine import engine
 
 
@@ -28,7 +28,12 @@ class FakeVieneu:
             yield np.full(self.sample_rate // 3, 0.5, dtype=np.float32)
 
 
-def test_vieneu_is_off_by_default(monkeypatch) -> None:
+def test_vieneu_is_on_by_default() -> None:
+    assert VIENEU_ENABLED is True
+    assert engine._use_vieneu("vi") is True
+
+
+def test_vieneu_can_be_disabled(monkeypatch) -> None:
     monkeypatch.setattr("app.engine.VIENEU_ENABLED", False)
     assert engine._use_vieneu("vi") is False
     assert engine._use_vieneu("en") is False

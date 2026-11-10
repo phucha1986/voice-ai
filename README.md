@@ -87,14 +87,14 @@ Measured effect: `Hà Nội là thủ đô của Việt Nam.` went from 650 ms o
 
 ## Optional Vietnamese engine: VieNeu-TTS
 
-The XTTS Vietnamese finetune reads compounds correctly but still pauses at sentence boundaries and is slow on CPU. An alternative Vietnamese engine, [VieNeu-TTS](https://github.com/pitvnga1/vieneu-tts) (Apache-2.0, phoneme-level Vietnamese G2P via `sea-g2p`, voice cloning, Vietnamese + English), can serve `vi` instead. It is **disabled by default** — enable it with `VOICE_AI_VIENEU=1`:
+The XTTS Vietnamese finetune reads compounds correctly but still pauses at sentence boundaries and is slow on CPU. The default Vietnamese engine is [VieNeu-TTS](https://github.com/pitvnga1/vieneu-tts) (Apache-2.0, phoneme-level Vietnamese G2P via `sea-g2p`, voice cloning, Vietnamese + English). It is **enabled by default** — set `VOICE_AI_VIENEU=0` to serve `vi` with the XTTS finetune again:
 
 ```powershell
-$env:VOICE_AI_VIENEU = "1"          # optional: VOICE_AI_VIENEU_MODE, _PRECISION, _THREADS
+$env:VOICE_AI_VIENEU = "0"         # optional: VOICE_AI_VIENEU_MODE, _PRECISION, _THREADS
 backend\.venv\Scripts\python.exe -m uvicorn app.main:app --port 8000
 ```
 
-`Engine._use_vieneu()` routes `language="vi"` to VieNeu when enabled; the other 17 languages stay on stock XTTS v2, and `GET /health` reports which engine serves Vietnamese (`vietnamese_engine`). VieNeu handles chunking and inter-chunk pauses internally and phonemizes at phoneme level, so `format_vietnamese()` and `collapse_long_gaps()` are not applied on that path.
+`Engine._use_vieneu()` routes `language="vi"` to VieNeu unless disabled; the other 17 languages stay on stock XTTS v2, and `GET /health` reports which engine serves Vietnamese (`vietnamese_engine`). VieNeu handles chunking and inter-chunk pauses internally and phonemizes at phoneme level, so `format_vietnamese()` and `collapse_long_gaps()` are not applied on that path.
 
 Two modes are supported, both torch-free ONNX on CPU (the app pins `device="cpu"`, `backend="onnx"` — AMD GPUs have no CUDA here):
 
@@ -150,7 +150,7 @@ Force a device with `VOICE_AI_DEVICE=cpu` (force CPU even when a GPU exists) or 
 | `VOICE_AI_MAX_REF_SECONDS` | `30` | Reference clip length cap |
 | `VOICE_AI_MAX_TEXT_CHARS` | `4000` | Text length cap |
 | `VOICE_AI_MAX_GAP_MS` | `100` | Cap silence runs (ms) between sentence chunks |
-| `VOICE_AI_VIENEU` | unset | Set `1` to serve `vi` with VieNeu-TTS instead of the XTTS finetune |
+| `VOICE_AI_VIENEU` | `1` | Set `0` to serve `vi` with the XTTS finetune instead of VieNeu-TTS |
 | `VOICE_AI_VIENEU_MODE` | `v3turbo` | VieNeu mode: `v3turbo` (48 kHz, resampled) or `v3nano` (24 kHz) |
 | `VOICE_AI_VIENEU_PRECISION` | `fp32` | VieNeu ONNX precision (`fp32` or `int8`, `v3turbo` only) |
 | `VOICE_AI_VIENEU_THREADS` | `0` | ONNX inference threads (`0` = auto) |
@@ -182,7 +182,7 @@ Frontend: `NEXT_PUBLIC_API_BASE` (default `http://localhost:8000`).
 ```bash
 cd backend
 .venv\Scripts\activate
-pytest            # 46 tests: audio preprocessing, gap collapsing, Vietnamese compound formatting, VieNeu routing/resampling, API (fake engine), engine settings/seed, language list + Vietnamese routing
+pytest            # 47 tests: audio preprocessing, gap collapsing, Vietnamese compound formatting, VieNeu routing/resampling/default, API (fake engine), engine settings/seed, language list + Vietnamese routing
 ```
 
 ## License note

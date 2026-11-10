@@ -61,9 +61,9 @@ SUPPORTED_LANGUAGES = [*XTTS_V2_LANGUAGES, VI_LANGUAGE] if VI_MODEL_ID else list
 # phoneme-level (sea-g2p), so Vietnamese compound words ("nhanh nhẹn") are read
 # as one word instead of one syllable per token, and its pause handling is
 # type-aware, so neither format_vietnamese() nor collapse_long_gaps() is needed.
-# Disabled by default: XTTS v2 + the Vietnamese finetune is ~5x faster on this
-# machine, so VieNeu is opt-in via VOICE_AI_VIENEU=1.
-VIENEU_ENABLED = os.environ.get("VOICE_AI_VIENEU", "0") == "1"
+# Enabled by default; set VOICE_AI_VIENEU=0 to serve vi with the XTTS finetune
+# again (it is ~5x faster on this machine, but pauses between sentences).
+VIENEU_ENABLED = os.environ.get("VOICE_AI_VIENEU", "1") != "0"
 # "v3turbo" (48 kHz, best quality) or "v3nano" (24 kHz, 48M params, for weak CPUs).
 VIENEU_MODE = os.environ.get("VOICE_AI_VIENEU_MODE", "v3turbo")
 # ONNX weights for v3turbo: "fp32" (RTF ~2.9 here) or "int8" (needs a VNNI-capable
