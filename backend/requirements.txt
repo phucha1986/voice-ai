@@ -18,6 +18,12 @@ six>=1.17.0
 # Vietnamese word segmentation: joins compound words so XTTS reads them as one word.
 underthesea>=9.5.0
 
+# Optional second Vietnamese engine (VOICE_AI_VIENEU=1): VieNeu-TTS runs on a
+# torch-free ONNX CPU runtime and pronounces Vietnamese compound words as words.
+# soxr is used to downsample VieNeu v3 Turbo's 48 kHz output to 24 kHz.
+vieneu==3.8.4
+soxr>=0.5.0
+
 # Tests
 pytest>=8.3.0
 httpx>=0.27.0

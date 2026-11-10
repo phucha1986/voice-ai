@@ -264,6 +264,9 @@ export default function Home() {
               <span className={health.model_loaded ? "pill ok" : "pill"} data-pw="health-model">
                 model {health.model_loaded ? "đã nạp" : "chưa nạp"}
               </span>
+              <span className={health.vietnamese_engine === "xtts-finetune" ? "pill" : "pill ok"} data-pw="health-vi-engine">
+                tiếng Việt: {health.vietnamese_engine}
+              </span>
               <span className={health.ffmpeg ? "pill ok" : "pill bad"} data-pw="health-ffmpeg">
                 ffmpeg {health.ffmpeg ? "sẵn sàng" : "thiếu"}
               </span>

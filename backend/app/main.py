@@ -37,6 +37,8 @@ from .config import (
     MAX_UPLOAD_BYTES,
     MODEL_NAME,
     SUPPORTED_LANGUAGES,
+    VIENEU_ENABLED,
+    VIENEU_MODE,
     TMP_DIR,
     VI_VOICE_DIR,
     VOICES_DIR,
@@ -94,6 +96,7 @@ def health() -> HealthOut:
         model_loaded=engine.loaded,
         languages=engine.languages if engine.loaded else SUPPORTED_LANGUAGES,
         queued=store.queued_count(),
+        vietnamese_engine=VIENEU_MODE if VIENEU_ENABLED else "xtts-finetune",
     )
 
 

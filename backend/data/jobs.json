@@ -226,5 +226,43 @@
     "error": null,
     "sample_rate": 24000,
     "synth_seconds": 9.53
+  },
+  "128c8740193e": {
+    "id": "128c8740193e",
+    "text": "Con c\u00e1o n\u00e2u nhanh nh\u1eb9n nh\u1ea3y qua con ch\u00f3 n\u00e2u l\u01b0\u1eddi bi\u1ebfng. H\u00e0 N\u1ed9i l\u00e0 th\u1ee7 \u0111\u00f4 c\u1ee7a Vi\u1ec7t Nam.",
+    "voice_id": "1481415ddaa8",
+    "language": "vi",
+    "speed": 1.0,
+    "temperature": 0.5,
+    "seed": null,
+    "status": "done",
+    "progress": 1.0,
+    "created_at": "2026-11-10T22:06:15.644988+00:00",
+    "started_at": "2026-11-10T22:06:15.644988+00:00",
+    "finished_at": "2026-11-10T22:06:44.570863+00:00",
+    "audio_path": "F:\\Projects\\voice-ai\\backend\\data\\audio\\128c8740193e.wav",
+    "duration_seconds": 4.64,
+    "error": null,
+    "sample_rate": 24000,
+    "synth_seconds": 28.92
+  },
+  "b6bc040e35dc": {
+    "id": "b6bc040e35dc",
+    "text": "H\u00e0 N\u1ed9i l\u00e0 th\u1ee7 \u0111\u00f4 c\u1ee7a Vi\u1ec7t Nam.",
+    "voice_id": "1481415ddaa8",
+    "language": "vi",
+    "speed": 1.0,
+    "temperature": 0.5,
+    "seed": null,
+    "status": "done",
+    "progress": 1.0,
+    "created_at": "2026-11-10T22:08:06.184624+00:00",
+    "started_at": "2026-11-10T22:08:06.186622+00:00",
+    "finished_at": "2026-11-10T22:08:32.204962+00:00",
+    "audio_path": "F:\\Projects\\voice-ai\\backend\\data\\audio\\b6bc040e35dc.wav",
+    "duration_seconds": 2.02,
+    "error": null,
+    "sample_rate": 24000,
+    "synth_seconds": 26.02
   }
 }

@@ -34,6 +34,7 @@ export interface Health {
   gpu: boolean;
   ffmpeg: boolean;
   model_loaded: boolean;
+  vietnamese_engine: string;
   languages: string[];
   queued: number;
 }

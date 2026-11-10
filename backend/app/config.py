@@ -54,9 +54,30 @@ XTTS_V2_LANGUAGES = [
 ]
 SUPPORTED_LANGUAGES = [*XTTS_V2_LANGUAGES, VI_LANGUAGE] if VI_MODEL_ID else list(XTTS_V2_LANGUAGES)
 
+# --- VieNeu-TTS (optional second Vietnamese engine) --------------------
+
+# VieNeu-TTS (https://github.com/pitvnga1/vieneu-tts) speaks Vietnamese and
+# English with voice cloning on a torch-free ONNX CPU runtime. Its phonemizer is
+# phoneme-level (sea-g2p), so Vietnamese compound words ("nhanh nhẹn") are read
+# as one word instead of one syllable per token, and its pause handling is
+# type-aware, so neither format_vietnamese() nor collapse_long_gaps() is needed.
+# Disabled by default: XTTS v2 + the Vietnamese finetune is ~5x faster on this
+# machine, so VieNeu is opt-in via VOICE_AI_VIENEU=1.
+VIENEU_ENABLED = os.environ.get("VOICE_AI_VIENEU", "0") == "1"
+# "v3turbo" (48 kHz, best quality) or "v3nano" (24 kHz, 48M params, for weak CPUs).
+VIENEU_MODE = os.environ.get("VOICE_AI_VIENEU_MODE", "v3turbo")
+# ONNX weights for v3turbo: "fp32" (RTF ~2.9 here) or "int8" (needs a VNNI-capable
+# CPU, otherwise the audio is distorted).
+VIENEU_PRECISION = os.environ.get("VOICE_AI_VIENEU_PRECISION", "fp32")
+# ONNX Runtime intra-op threads; 0 = about half the physical cores.
+VIENEU_THREADS = int(os.environ.get("VOICE_AI_VIENEU_THREADS", "0"))
+# Languages VieNeu serves. English stays on XTTS v2 (it is faster there).
+VIENEU_LANGUAGES = ["vi"]
+
 # --- Audio -------------------------------------------------------------
 
 # XTTS v2 outputs at 24 kHz; reference audio is normalised to this rate.
+# VieNeu v3 Turbo outputs at 48 kHz and is downsampled to this rate before saving.
 TARGET_SAMPLE_RATE = 24000
 MIN_REF_SECONDS = 2.0
 MAX_REF_SECONDS = float(os.environ.get("VOICE_AI_MAX_REF_SECONDS", 30.0))

@@ -6,6 +6,11 @@ blocking and streaming synthesis with voice cloning from a reference WAV.
 Stock XTTS v2 speaks 17 languages and cannot speak Vietnamese, so Vietnamese
 requests are routed to a separate Vietnamese XTTS finetune (``VI_MODEL_ID``)
 that is loaded lazily on first use.
+
+Vietnamese can alternatively be served by VieNeu-TTS (``VOICE_AI_VIENEU=1``),
+a torch-free ONNX CPU engine whose phoneme-level phonemizer pronounces
+Vietnamese compound words as words. VieNeu outputs at its own sample rate and
+is downsampled to ``TARGET_SAMPLE_RATE`` before saving.
 """
 
 from __future__ import annotations
@@ -18,6 +23,7 @@ from typing import Callable, Iterator
 
 import numpy as np
 import soundfile as sf
+import soxr
 import torch
 
 from .audio import collapse_long_gaps, collapse_long_gaps_stream
@@ -25,6 +31,12 @@ from .vietnamese import format_vietnamese
 from .config import (
     DEFAULT_LANGUAGE,
     MODEL_NAME,
+    TARGET_SAMPLE_RATE,
+    VIENEU_ENABLED,
+    VIENEU_LANGUAGES,
+    VIENEU_MODE,
+    VIENEU_PRECISION,
+    VIENEU_THREADS,
     VI_CONFIG_FILE,
     VI_LANGUAGE,
     VI_MODEL_ID,
@@ -43,6 +55,7 @@ class Engine:
     def __init__(self) -> None:
         self._tts = None
         self._vi = None
+        self._vieneu = None
         self._device_info: DeviceInfo | None = None
         self._sample_rate: int | None = None
         self._languages: list[str] | None = None
@@ -141,6 +154,37 @@ class Engine:
         return self._vi is not None
 
     @property
+    def vieneu_loaded(self) -> bool:
+        return self._vieneu is not None
+
+    def _use_vieneu(self, language: str) -> bool:
+        """VieNeu is opt-in and only serves the languages in ``VIENEU_LANGUAGES``."""
+        return VIENEU_ENABLED and language in VIENEU_LANGUAGES
+
+    def load_vieneu(self) -> None:
+        """Download and load VieNeu-TTS (torch-free ONNX on CPU) for Vietnamese."""
+        with self._lock:
+            if self._vieneu is not None:
+                return
+            logger.info("Loading VieNeu-TTS %s (%s) on CPU", VIENEU_MODE, VIENEU_PRECISION)
+            from vieneu import Vieneu
+
+            if VIENEU_MODE == "v3nano":
+                # v3 Nano is ONNX/CPU only and takes no device/backend/precision args.
+                self._vieneu = Vieneu(mode="v3nano", threads=VIENEU_THREADS)
+            else:
+                # This machine has an AMD GPU with no CUDA support, so pin the
+                # torch-free ONNX CPU runtime instead of letting it probe devices.
+                self._vieneu = Vieneu(
+                    mode=VIENEU_MODE,
+                    device="cpu",
+                    backend="onnx",
+                    precision=VIENEU_PRECISION,
+                    threads=VIENEU_THREADS,
+                )
+            logger.info("VieNeu model ready (sample rate %s Hz)", self._vieneu.sample_rate)
+
+    @property
     def device_info(self) -> DeviceInfo:
         if self._device_info is None:
             self._device_info = resolve_device()
@@ -212,6 +256,30 @@ class Engine:
         if torch.cuda.is_available():
             torch.cuda.manual_seed_all(seed)
 
+    def _resample_to_target(self, wav: np.ndarray, src_rate: int) -> np.ndarray:
+        """VieNeu v3 Turbo outputs 48 kHz; everything downstream assumes the XTTS rate."""
+        if src_rate == TARGET_SAMPLE_RATE or len(wav) == 0:
+            return np.asarray(wav, dtype=np.float32)
+        return np.asarray(soxr.resample(wav, src_rate, TARGET_SAMPLE_RATE), dtype=np.float32)
+
+    def _vieneu_kwargs(self, *, temperature: float, speed: float, seed: int | None) -> dict:
+        """Map the XTTS request knobs onto VieNeu's parameters.
+
+        ``resemble-perth`` is not installed, so the watermark step is a no-op and
+        is skipped rather than importing another dependency. v3 Turbo has no
+        speed/seed knobs, so those are only forwarded to v3 Nano.
+        """
+        kwargs: dict = {"denoise": True, "apply_watermark": False}
+        if VIENEU_MODE == "v3nano":
+            kwargs["speed"] = speed
+            if seed is not None:
+                kwargs["seed"] = seed
+        else:
+            # VieNeu samples at temperature 0.8 by default; XTTS requests are
+            # normally lower, so clamp into the range the model stays intelligible.
+            kwargs["temperature"] = min(max(temperature, 0.3), 0.9)
+        return kwargs
+
     # --- Synthesis -----------------------------------------------------
 
     def synthesize(
@@ -226,7 +294,17 @@ class Engine:
         seed: int | None = None,
         progress_cb: ProgressCb | None = None,
     ) -> np.ndarray:
-        """Synthesize ``text`` cloned from ``ref_wav``. Returns float32 PCM at the model rate."""
+        """Synthesize ``text`` cloned from ``ref_wav``. Returns float32 PCM at ``TARGET_SAMPLE_RATE``."""
+        if self._use_vieneu(language):
+            return self._synthesize_vieneu(
+                text,
+                ref_wav=ref_wav,
+                speed=speed,
+                temperature=temperature,
+                seed=seed,
+                progress_cb=progress_cb,
+            )
+
         synth = self._synth_for(language)
         model = synth.tts_model
         if language == VI_LANGUAGE:
@@ -251,6 +329,65 @@ class Engine:
             return np.zeros(0, dtype=np.float32)
         return collapse_long_gaps(np.concatenate(chunks))
 
+    def _synthesize_vieneu(
+        self,
+        text: str,
+        *,
+        ref_wav: str,
+        speed: float,
+        temperature: float,
+        seed: int | None,
+        progress_cb: ProgressCb | None,
+    ) -> np.ndarray:
+        """VieNeu path: phoneme-level phonemizer + type-aware chunking, so no
+        ``format_vietnamese``/``collapse_long_gaps``. Reference enrolment is cached
+        inside VieNeu by clip content, so there is no voice file to manage."""
+        self.load_vieneu()
+        model = self._vieneu
+        assert model is not None
+        kwargs = self._vieneu_kwargs(temperature=temperature, speed=speed, seed=seed)
+
+        with self._lock:
+            wav = model.infer(text, ref_audio=ref_wav, **kwargs)
+
+        if progress_cb:
+            progress_cb(1.0)
+        return self._resample_to_target(np.asarray(wav, dtype=np.float32), model.sample_rate)
+
+    def _synthesize_vieneu_stream(
+        self,
+        text: str,
+        *,
+        ref_wav: str,
+        speed: float,
+        temperature: float,
+        seed: int | None,
+    ) -> Iterator[np.ndarray]:
+        self.load_vieneu()
+        model = self._vieneu
+        assert model is not None
+        kwargs = self._vieneu_kwargs(temperature=temperature, speed=speed, seed=seed)
+
+        src_rate = model.sample_rate
+        resampler = (
+            soxr.ResampleStream(src_rate, TARGET_SAMPLE_RATE, 1, dtype="float32", quality="HQ")
+            if src_rate != TARGET_SAMPLE_RATE
+            else None
+        )
+
+        with self._lock:
+            for chunk in model.infer_stream(text, ref_audio=ref_wav, **kwargs):
+                if resampler is None:
+                    yield np.asarray(chunk, dtype=np.float32)
+                else:
+                    out = resampler.resample_chunk(np.asarray(chunk, dtype=np.float32))
+                    if len(out):
+                        yield np.asarray(out, dtype=np.float32)
+            if resampler is not None:
+                tail = resampler.resample_chunk(np.zeros(0, dtype=np.float32), last=True)
+                if len(tail):
+                    yield np.asarray(tail, dtype=np.float32)
+
     def synthesize_stream(
         self,
         text: str,
@@ -264,6 +401,12 @@ class Engine:
         chunk_size: int = 20,
     ) -> Iterator[np.ndarray]:
         """Yield audio chunks as they are generated (for SSE streaming)."""
+        if self._use_vieneu(language):
+            yield from self._synthesize_vieneu_stream(
+                text, ref_wav=ref_wav, speed=speed, temperature=temperature, seed=seed
+            )
+            return
+
         synth = self._synth_for(language)
         model = synth.tts_model
         settings = self._settings(speed=speed, temperature=temperature)
@@ -292,8 +435,8 @@ class Engine:
             yield from collapse_long_gaps_stream(raw_chunks())
 
     def save_wav(self, wav: np.ndarray, path: str) -> dict:
-        """Write float32 PCM to a WAV file at the model sample rate."""
-        sr = self.sample_rate
+        """Write float32 PCM to a WAV file at the target sample rate."""
+        sr = TARGET_SAMPLE_RATE
         sf.write(path, wav, sr, subtype="PCM_16")
         return {"path": path, "sample_rate": sr, "duration_seconds": round(len(wav) / sr, 2)}
 

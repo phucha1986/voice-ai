@@ -85,6 +85,26 @@ Rules, chosen from measured audio (faster-whisper transcription + silence-run me
 
 Measured effect: `Hà Nội là thủ đô của Việt Nam.` went from 650 ms of total silence to 280 ms (mid-speech runs 5 → 2), and `chất lượng` and `kiểm tra` transcribed more accurately once joined. Underscore (`_`) and gluing (`nhanhnhẹn`) were both tested and are worse than hyphen joining.
 
+## Optional Vietnamese engine: VieNeu-TTS
+
+The XTTS Vietnamese finetune reads compounds correctly but still pauses at sentence boundaries and is slow on CPU. An alternative Vietnamese engine, [VieNeu-TTS](https://github.com/pitvnga1/vieneu-tts) (Apache-2.0, phoneme-level Vietnamese G2P via `sea-g2p`, voice cloning, Vietnamese + English), can serve `vi` instead. It is **disabled by default** — enable it with `VOICE_AI_VIENEU=1`:
+
+```powershell
+$env:VOICE_AI_VIENEU = "1"          # optional: VOICE_AI_VIENEU_MODE, _PRECISION, _THREADS
+backend\.venv\Scripts\python.exe -m uvicorn app.main:app --port 8000
+```
+
+`Engine._use_vieneu()` routes `language="vi"` to VieNeu when enabled; the other 17 languages stay on stock XTTS v2, and `GET /health` reports which engine serves Vietnamese (`vietnamese_engine`). VieNeu handles chunking and inter-chunk pauses internally and phonemizes at phoneme level, so `format_vietnamese()` and `collapse_long_gaps()` are not applied on that path.
+
+Two modes are supported, both torch-free ONNX on CPU (the app pins `device="cpu"`, `backend="onnx"` — AMD GPUs have no CUDA here):
+
+| Mode | Sample rate | Notes |
+|---|---|---|
+| `v3turbo` (default) | 48 kHz | Downsampled to 24 kHz with `soxr` (blocking and streaming). `fp32` is faster and clearer than `int8` on this machine; `int8` needs a VNNI-capable CPU or audio is distorted. `speed`/`seed` are ignored — `temperature` is mapped (clamped 0.3–0.9). |
+| `v3nano` | 24 kHz | No resampling needed. Smaller/faster per step but slower overall on this CPU; supports `speed` and `seed`. |
+
+Measured on an i5-11400F, cloning the bundled Vietnamese reference, for a two-sentence paragraph: XTTS finetune RTF ~0.6 with 12 silence runs > 120 ms (8.94 s of silence); VieNeu `v3turbo` fp32 RTF ~2.9 with 2 runs (1.58 s). A live job through `POST /generate` produced a 4.64 s 24 kHz WAV with a single 0.41 s run and transcribed as `vi` (probability 1.00). Reference enrolment is memoised by clip content inside VieNeu, so repeat jobs with the same voice pay no enrolment cost.
+
 ## Languages
 
 The app serves 18 languages via `GET /languages` and rejects anything else with `400`:
@@ -130,6 +150,10 @@ Force a device with `VOICE_AI_DEVICE=cpu` (force CPU even when a GPU exists) or 
 | `VOICE_AI_MAX_REF_SECONDS` | `30` | Reference clip length cap |
 | `VOICE_AI_MAX_TEXT_CHARS` | `4000` | Text length cap |
 | `VOICE_AI_MAX_GAP_MS` | `100` | Cap silence runs (ms) between sentence chunks |
+| `VOICE_AI_VIENEU` | unset | Set `1` to serve `vi` with VieNeu-TTS instead of the XTTS finetune |
+| `VOICE_AI_VIENEU_MODE` | `v3turbo` | VieNeu mode: `v3turbo` (48 kHz, resampled) or `v3nano` (24 kHz) |
+| `VOICE_AI_VIENEU_PRECISION` | `fp32` | VieNeu ONNX precision (`fp32` or `int8`, `v3turbo` only) |
+| `VOICE_AI_VIENEU_THREADS` | `0` | ONNX inference threads (`0` = auto) |
 | `COQUI_TOS_AGREED` | set to `1` by the app | Skip the CPML license interactive prompt |
 | `HF_TOKEN` | unset | Optional Hugging Face token for model download |
 
@@ -139,7 +163,7 @@ Frontend: `NEXT_PUBLIC_API_BASE` (default `http://localhost:8000`).
 
 | Method | Path | Description |
 |---|---|---|
-| `GET` | `/health` | Device, backend, GPU flag, ffmpeg, model-loaded, queue depth |
+| `GET` | `/health` | Device, backend, GPU flag, ffmpeg, model-loaded, Vietnamese engine, queue depth |
 | `GET` | `/languages` | Supported languages (XTTS v2's 17 plus `vi` — see "Languages") |
 | `POST` | `/voices` | Multipart upload (`file`, optional `name`) → preprocessed voice |
 | `GET` | `/voices` / `/voices/{id}` | List / get voices |
@@ -158,7 +182,7 @@ Frontend: `NEXT_PUBLIC_API_BASE` (default `http://localhost:8000`).
 ```bash
 cd backend
 .venv\Scripts\activate
-pytest            # 38 tests: audio preprocessing, gap collapsing, Vietnamese compound formatting, API (fake engine), engine settings/seed, language list + Vietnamese routing
+pytest            # 46 tests: audio preprocessing, gap collapsing, Vietnamese compound formatting, VieNeu routing/resampling, API (fake engine), engine settings/seed, language list + Vietnamese routing
 ```
 
 ## License note
