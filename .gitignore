@@ -1,0 +1,17 @@
+# Python
+backend/.venv/
+__pycache__/
+.pytest_cache/
+*.pyc
+
+# Node / Next
+node_modules/
+.next/
+out/
+tsconfig.tsbuildinfo
+
+# Runtime scratch space (uploads are decoded here before becoming a voice)
+backend/data/tmp/
+
+# Logs
+*.log

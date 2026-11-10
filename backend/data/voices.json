@@ -1,0 +1,11 @@
+{
+  "1481415ddaa8": {
+    "id": "1481415ddaa8",
+    "name": "Gi\u1ecdng n\u00f3i ti\u1ebfng Vi\u1ec7t",
+    "ref_path": "F:\\Projects\\voice-ai\\backend\\data\\voices\\e5abe03b52ac.wav",
+    "created_at": "2026-11-10T15:34:15.813623+00:00",
+    "duration_seconds": 12.0,
+    "sample_rate": 24000,
+    "source_filename": "vietnamese-reference.wav"
+  }
+}
