@@ -67,7 +67,10 @@ ALLOWED_EXTENSIONS = {".wav", ".mp3", ".ogg", ".flac", ".m4a", ".aac", ".opus", 
 # XTTS leaves 200-380 ms of silence at sentence boundaries, which sounds like a
 # pause mid-speech. Longer silence runs are capped to this; shorter pauses (word
 # boundaries) are left alone so the prosody stays natural.
-MAX_GAP_MS = int(os.environ.get("VOICE_AI_MAX_GAP_MS", "150"))
+# 100 ms removes the audible pauses without garbling speech -- measured on the
+# Vietnamese finetune, 150 ms still leaves 140 ms pauses and 80 ms mispronounces
+# proper nouns ("Hà Nội" -> "tụi đô").
+MAX_GAP_MS = int(os.environ.get("VOICE_AI_MAX_GAP_MS", "100"))
 
 # --- Queue -------------------------------------------------------------
 

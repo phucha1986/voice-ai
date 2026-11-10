@@ -1,6 +1,6 @@
 {
-  "aba1e6bdeb10": {
-    "id": "aba1e6bdeb10",
+  "35c8708b120d": {
+    "id": "35c8708b120d",
     "text": "Con c\u00e1o n\u00e2u nhanh nh\u1eb9n nh\u1ea3y qua con ch\u00f3 l\u01b0\u1eddi. Nh\u00e2n b\u1ea3n gi\u1ecdng n\u00f3i ho\u1ea1t \u0111\u1ed9ng t\u1eeb tr\u00ecnh duy\u1ec7t.",
     "voice_id": "1481415ddaa8",
     "language": "vi",
@@ -9,17 +9,17 @@
     "seed": null,
     "status": "done",
     "progress": 1.0,
-    "created_at": "2026-11-10T17:29:49.571347+00:00",
-    "started_at": "2026-11-10T17:29:49.573345+00:00",
-    "finished_at": "2026-11-10T17:30:36.676914+00:00",
-    "audio_path": "F:\\Projects\\voice-ai\\backend\\data\\audio\\aba1e6bdeb10.wav",
-    "duration_seconds": 5.92,
+    "created_at": "2026-11-10T19:11:36.949858+00:00",
+    "started_at": "2026-11-10T19:11:36.950860+00:00",
+    "finished_at": "2026-11-10T19:12:37.276315+00:00",
+    "audio_path": "F:\\Projects\\voice-ai\\backend\\data\\audio\\35c8708b120d.wav",
+    "duration_seconds": 6.1,
     "error": null,
     "sample_rate": 24000,
-    "synth_seconds": 47.1
+    "synth_seconds": 60.32
   },
-  "f4a172fd8fa9": {
-    "id": "f4a172fd8fa9",
+  "2a36cc279bbb": {
+    "id": "2a36cc279bbb",
     "text": "Ki\u1ec3m tra t\u00ednh t\u00e1i t\u1ea1o x\u00e1c \u0111\u1ecbnh c\u1ee7a gi\u1ecdng n\u00f3i.",
     "voice_id": "1481415ddaa8",
     "language": "vi",
@@ -28,17 +28,17 @@
     "seed": null,
     "status": "done",
     "progress": 1.0,
-    "created_at": "2026-11-10T17:30:37.178539+00:00",
-    "started_at": "2026-11-10T17:30:37.180548+00:00",
-    "finished_at": "2026-11-10T17:30:44.112568+00:00",
-    "audio_path": "F:\\Projects\\voice-ai\\backend\\data\\audio\\f4a172fd8fa9.wav",
-    "duration_seconds": 2.43,
+    "created_at": "2026-11-10T19:11:36.952860+00:00",
+    "started_at": "2026-11-10T19:12:37.277821+00:00",
+    "finished_at": "2026-11-10T19:12:51.067055+00:00",
+    "audio_path": "F:\\Projects\\voice-ai\\backend\\data\\audio\\2a36cc279bbb.wav",
+    "duration_seconds": 3.74,
     "error": null,
     "sample_rate": 24000,
-    "synth_seconds": 6.93
+    "synth_seconds": 13.79
   },
-  "418534692249": {
-    "id": "418534692249",
+  "44227c1202c6": {
+    "id": "44227c1202c6",
     "text": "T\u00f4i \u0111ang ki\u1ec3m tra ch\u1ea5t l\u01b0\u1ee3ng gi\u1ecdng n\u00f3i ti\u1ebfng Vi\u1ec7t sau khi \u0111\u1ed5i audio tham chi\u1ebfu.",
     "voice_id": "1481415ddaa8",
     "language": "vi",
@@ -47,17 +47,17 @@
     "seed": null,
     "status": "done",
     "progress": 1.0,
-    "created_at": "2026-11-10T17:30:44.357091+00:00",
-    "started_at": "2026-11-10T17:30:44.358595+00:00",
-    "finished_at": "2026-11-10T17:30:55.446797+00:00",
-    "audio_path": "F:\\Projects\\voice-ai\\backend\\data\\audio\\418534692249.wav",
-    "duration_seconds": 3.9,
+    "created_at": "2026-11-10T19:11:36.956371+00:00",
+    "started_at": "2026-11-10T19:12:51.068560+00:00",
+    "finished_at": "2026-11-10T19:13:05.537683+00:00",
+    "audio_path": "F:\\Projects\\voice-ai\\backend\\data\\audio\\44227c1202c6.wav",
+    "duration_seconds": 4.18,
     "error": null,
     "sample_rate": 24000,
-    "synth_seconds": 11.09
+    "synth_seconds": 14.47
   },
-  "1fd1c4a8629e": {
-    "id": "1fd1c4a8629e",
+  "29281dd2dafb": {
+    "id": "29281dd2dafb",
     "text": "Xin ch\u00e0o! \u0110\u00e2y l\u00e0 b\u00e0i ki\u1ec3m tra nh\u00e2n b\u1ea3n gi\u1ecdng n\u00f3i th\u1eadt \u0111\u01b0\u1ee3c t\u1ea1o b\u1eb1ng XTTS tr\u00ean m\u00e1y c\u1ee7a b\u1ea1n.",
     "voice_id": "1481415ddaa8",
     "language": "vi",
@@ -66,17 +66,17 @@
     "seed": null,
     "status": "done",
     "progress": 1.0,
-    "created_at": "2026-11-10T17:30:55.531417+00:00",
-    "started_at": "2026-11-10T17:30:55.532417+00:00",
-    "finished_at": "2026-11-10T17:31:12.427805+00:00",
-    "audio_path": "F:\\Projects\\voice-ai\\backend\\data\\audio\\1fd1c4a8629e.wav",
-    "duration_seconds": 5.92,
+    "created_at": "2026-11-10T19:11:36.960395+00:00",
+    "started_at": "2026-11-10T19:13:05.539191+00:00",
+    "finished_at": "2026-11-10T19:13:24.583386+00:00",
+    "audio_path": "F:\\Projects\\voice-ai\\backend\\data\\audio\\29281dd2dafb.wav",
+    "duration_seconds": 5.74,
     "error": null,
     "sample_rate": 24000,
-    "synth_seconds": 16.89
+    "synth_seconds": 19.04
   },
-  "658d4f02b8b9": {
-    "id": "658d4f02b8b9",
+  "9c7592dd8673": {
+    "id": "9c7592dd8673",
     "text": "Xin ch\u00e0o! \u0110\u00e2y l\u00e0 gi\u1ecdng n\u00f3i \u0111\u01b0\u1ee3c nh\u00e2n b\u1ea3n b\u1eb1ng XTTS tr\u00ean m\u00e1y c\u1ee7a t\u00f4i.",
     "voice_id": "1481415ddaa8",
     "language": "vi",
@@ -85,17 +85,17 @@
     "seed": null,
     "status": "done",
     "progress": 1.0,
-    "created_at": "2026-11-10T17:31:12.894412+00:00",
-    "started_at": "2026-11-10T17:31:12.895412+00:00",
-    "finished_at": "2026-11-10T17:31:25.970851+00:00",
-    "audio_path": "F:\\Projects\\voice-ai\\backend\\data\\audio\\658d4f02b8b9.wav",
-    "duration_seconds": 4.57,
+    "created_at": "2026-11-10T19:11:36.963392+00:00",
+    "started_at": "2026-11-10T19:13:24.584385+00:00",
+    "finished_at": "2026-11-10T19:13:40.268201+00:00",
+    "audio_path": "F:\\Projects\\voice-ai\\backend\\data\\audio\\9c7592dd8673.wav",
+    "duration_seconds": 5.05,
     "error": null,
     "sample_rate": 24000,
-    "synth_seconds": 13.07
+    "synth_seconds": 15.68
   },
-  "81ec21e4b6d7": {
-    "id": "81ec21e4b6d7",
+  "8886a309b91e": {
+    "id": "8886a309b91e",
     "text": "Xin ch\u00e0o! \u0110\u00e2y l\u00e0 gi\u1ecdng n\u00f3i \u0111\u01b0\u1ee3c nh\u00e2n b\u1ea3n b\u1eb1ng XTTS tr\u00ean m\u00e1y c\u1ee7a t\u00f4i. H\u00f4m nay tr\u1eddi r\u1ea5t \u0111\u1eb9p.",
     "voice_id": "1481415ddaa8",
     "language": "vi",
@@ -104,17 +104,17 @@
     "seed": null,
     "status": "done",
     "progress": 1.0,
-    "created_at": "2026-11-10T17:31:26.124584+00:00",
-    "started_at": "2026-11-10T17:31:26.125582+00:00",
-    "finished_at": "2026-11-10T17:31:48.639465+00:00",
-    "audio_path": "F:\\Projects\\voice-ai\\backend\\data\\audio\\81ec21e4b6d7.wav",
-    "duration_seconds": 7.69,
+    "created_at": "2026-11-10T19:11:36.966900+00:00",
+    "started_at": "2026-11-10T19:13:40.270715+00:00",
+    "finished_at": "2026-11-10T19:13:58.313597+00:00",
+    "audio_path": "F:\\Projects\\voice-ai\\backend\\data\\audio\\8886a309b91e.wav",
+    "duration_seconds": 6.18,
     "error": null,
     "sample_rate": 24000,
-    "synth_seconds": 22.51
+    "synth_seconds": 18.04
   },
-  "224d3d3f5eda": {
-    "id": "224d3d3f5eda",
+  "9d69b6cae8d8": {
+    "id": "9d69b6cae8d8",
     "text": "Xin ch\u00e0o, \u0111\u00e2y l\u00e0 ki\u1ec3m tra nh\u00e2n b\u1ea3n gi\u1ecdng n\u00f3i t\u1eeb \u0111\u1ea7u \u0111\u1ebfn cu\u1ed1i.",
     "voice_id": "1481415ddaa8",
     "language": "vi",
@@ -123,17 +123,17 @@
     "seed": null,
     "status": "done",
     "progress": 1.0,
-    "created_at": "2026-11-10T17:31:48.986713+00:00",
-    "started_at": "2026-11-10T17:31:48.987714+00:00",
-    "finished_at": "2026-11-10T17:32:02.060893+00:00",
-    "audio_path": "F:\\Projects\\voice-ai\\backend\\data\\audio\\224d3d3f5eda.wav",
-    "duration_seconds": 4.02,
+    "created_at": "2026-11-10T19:11:36.969911+00:00",
+    "started_at": "2026-11-10T19:13:58.315105+00:00",
+    "finished_at": "2026-11-10T19:14:08.619417+00:00",
+    "audio_path": "F:\\Projects\\voice-ai\\backend\\data\\audio\\9d69b6cae8d8.wav",
+    "duration_seconds": 3.66,
     "error": null,
     "sample_rate": 24000,
-    "synth_seconds": 13.07
+    "synth_seconds": 10.3
   },
-  "5532c5db895c": {
-    "id": "5532c5db895c",
+  "6eab7f141405": {
+    "id": "6eab7f141405",
     "text": "Xin ch\u00e0o.",
     "voice_id": "1481415ddaa8",
     "language": "vi",
@@ -142,17 +142,17 @@
     "seed": null,
     "status": "done",
     "progress": 1.0,
-    "created_at": "2026-11-10T17:32:02.136510+00:00",
-    "started_at": "2026-11-10T17:32:02.138514+00:00",
-    "finished_at": "2026-11-10T17:32:06.149162+00:00",
-    "audio_path": "F:\\Projects\\voice-ai\\backend\\data\\audio\\5532c5db895c.wav",
-    "duration_seconds": 0.96,
+    "created_at": "2026-11-10T19:11:36.978451+00:00",
+    "started_at": "2026-11-10T19:14:08.621934+00:00",
+    "finished_at": "2026-11-10T19:14:11.527968+00:00",
+    "audio_path": "F:\\Projects\\voice-ai\\backend\\data\\audio\\6eab7f141405.wav",
+    "duration_seconds": 0.86,
     "error": null,
     "sample_rate": 24000,
-    "synth_seconds": 4.01
+    "synth_seconds": 2.91
   },
-  "b393ea061911": {
-    "id": "b393ea061911",
+  "819983f4c684": {
+    "id": "819983f4c684",
     "text": "Xin ch\u00e0o. \u0110\u00e2y l\u00e0 gi\u1ecdng n\u00f3i ti\u1ebfng Vi\u1ec7t \u0111\u01b0\u1ee3c nh\u00e2n b\u1ea3n t\u1eeb m\u1ed9t m\u1eabu tham chi\u1ebfu ti\u1ebfng Vi\u1ec7t.",
     "voice_id": "1481415ddaa8",
     "language": "vi",
@@ -161,17 +161,17 @@
     "seed": null,
     "status": "done",
     "progress": 1.0,
-    "created_at": "2026-11-10T17:32:06.184763+00:00",
-    "started_at": "2026-11-10T17:32:06.186760+00:00",
-    "finished_at": "2026-11-10T17:32:25.981639+00:00",
-    "audio_path": "F:\\Projects\\voice-ai\\backend\\data\\audio\\b393ea061911.wav",
-    "duration_seconds": 5.57,
+    "created_at": "2026-11-10T19:11:36.984447+00:00",
+    "started_at": "2026-11-10T19:14:11.529968+00:00",
+    "finished_at": "2026-11-10T19:14:27.409513+00:00",
+    "audio_path": "F:\\Projects\\voice-ai\\backend\\data\\audio\\819983f4c684.wav",
+    "duration_seconds": 5.38,
     "error": null,
     "sample_rate": 24000,
-    "synth_seconds": 19.79
+    "synth_seconds": 15.88
   },
-  "7d3869e39c5f": {
-    "id": "7d3869e39c5f",
+  "be2e082dcaad": {
+    "id": "be2e082dcaad",
     "text": "\u0110ang ki\u1ec3m tra lu\u1ed3ng tr\u1ea1ng th\u00e1i c\u00f4ng vi\u1ec7c.",
     "voice_id": "1481415ddaa8",
     "language": "vi",
@@ -180,13 +180,13 @@
     "seed": null,
     "status": "done",
     "progress": 1.0,
-    "created_at": "2026-11-10T17:32:26.501196+00:00",
-    "started_at": "2026-11-10T17:32:26.502331+00:00",
-    "finished_at": "2026-11-10T17:32:33.539342+00:00",
-    "audio_path": "F:\\Projects\\voice-ai\\backend\\data\\audio\\7d3869e39c5f.wav",
-    "duration_seconds": 2.44,
+    "created_at": "2026-11-10T19:11:36.989825+00:00",
+    "started_at": "2026-11-10T19:14:27.412023+00:00",
+    "finished_at": "2026-11-10T19:14:34.759635+00:00",
+    "audio_path": "F:\\Projects\\voice-ai\\backend\\data\\audio\\be2e082dcaad.wav",
+    "duration_seconds": 2.36,
     "error": null,
     "sample_rate": 24000,
-    "synth_seconds": 7.04
+    "synth_seconds": 7.35
   }
 }

@@ -65,9 +65,25 @@ An optional **Seed** makes output reproducible: the same seed with the same text
 
 ## Pauses between sentences
 
-XTTS emits 200–380 ms of silence at the end (and sometimes the start) of each sentence chunk, so concatenating chunks produced an audible pause mid-speech. `collapse_long_gaps()` in `backend/app/audio.py` scans the output in 20 ms windows, classifies a window as silence when its RMS is below `max(0.02, 5 % of peak)`, and shortens any silence run longer than `MAX_GAP_MS` (default 150 ms, override with `VOICE_AI_MAX_GAP_MS`) down to that length, keeping the middle of the run so no speech is lost. Silence shorter than the cap is a natural word boundary and is left untouched, so prosody stays natural. `Engine.synthesize()` applies it after concatenation and `Engine.synthesize_stream()` applies the streaming variant, which holds back the buffer tail so a gap spanning two chunks is capped once.
+XTTS emits 200–380 ms of silence at the end (and sometimes the start) of each sentence chunk, so concatenating chunks produced an audible pause mid-speech. `collapse_long_gaps()` in `backend/app/audio.py` scans the output in 20 ms windows, classifies a window as silence when its RMS is below `max(0.02, 5 % of peak)`, and shortens any silence run longer than `MAX_GAP_MS` (default 100 ms, override with `VOICE_AI_MAX_GAP_MS`) down to that length, keeping the middle of the run so no speech is lost. Silence shorter than the cap is a natural word boundary and is left untouched, so prosody stays natural. `Engine.synthesize()` applies it after concatenation and `Engine.synthesize_stream()` applies the streaming variant, which holds back the buffer tail so a gap spanning two chunks is capped once.
 
-Measured on a two-sentence Vietnamese job (seed 1234): raw concatenation had gaps of 380/280/240 ms; the collapsed output has a 160 ms maximum and keeps the same speech samples. All stored jobs were regenerated with the fix.
+Measured on Vietnamese jobs (seed 1234): raw concatenation had gaps of 380/280/240 ms; the collapsed output has a 100 ms maximum and keeps the same speech samples. 150 ms still left audible 140 ms pauses, and 80 ms mispronounced proper nouns (`Hà Nội` → "tụi đô"), so 100 ms is the chosen cap. All stored jobs were regenerated with the fix.
+
+## Vietnamese pronunciation
+
+Vietnamese writes compound words with a space between syllables (`nhanh nhẹn`, `hoạt động`, `thủ đô`), but XTTS' BPE tokenizer encodes each syllable as its own token separated by `[SPACE]` (token id 2). The Vietnamese finetune renders that boundary as ~100–160 ms of silence, so a compound is spoken as two separate words with an audible pause in the middle — "nhanh" … pause … "nhẹn" — which is why the output did not sound like Vietnamese speech.
+
+`backend/app/vietnamese.py` fixes this: `format_vietnamese()` segments the text with **`underthesea`** (a Vietnamese NLP library whose `word_tokenize` keeps compound syllables together) and joins the syllables of a lowercase compound with `-`, which is a single token in the finetune vocabulary with no BPE merges involving it, so the model reads the compound as one word. `Engine.synthesize()` and `Engine.synthesize_stream()` apply it for `language="vi"` before sentence splitting.
+
+Rules, chosen from measured audio (faster-whisper transcription + silence-run measurement over the 10 stored job texts):
+
+- Lowercase compounds are joined: `nhanh nhẹn` → `nhanh-nhẹn`, `hoạt động` → `hoạt-động`, `thủ đô` → `thủ-đô`, `kiểm tra` → `kiểm-tra`.
+- Capitalised compounds are left spaced: `Hà Nội`, `Việt Nam` stay as-is, because joining them garbles pronunciation (`Hà-Nội` → "Hanoi").
+- Words longer than 4 syllables are left alone (segmentation noise from underthesea).
+- Punctuation is re-attached to the preceding word, so no stray space precedes `.`/`,`/`!`.
+- If underthesea is missing or raises, the text is passed through unchanged — a broken install never blocks synthesis.
+
+Measured effect: `Hà Nội là thủ đô của Việt Nam.` went from 650 ms of total silence to 280 ms (mid-speech runs 5 → 2), and `chất lượng` and `kiểm tra` transcribed more accurately once joined. Underscore (`_`) and gluing (`nhanhnhẹn`) were both tested and are worse than hyphen joining.
 
 ## Languages
 
@@ -113,6 +129,7 @@ Force a device with `VOICE_AI_DEVICE=cpu` (force CPU even when a GPU exists) or 
 | `VOICE_AI_MAX_UPLOAD_BYTES` | `25 MB` | Upload size limit |
 | `VOICE_AI_MAX_REF_SECONDS` | `30` | Reference clip length cap |
 | `VOICE_AI_MAX_TEXT_CHARS` | `4000` | Text length cap |
+| `VOICE_AI_MAX_GAP_MS` | `100` | Cap silence runs (ms) between sentence chunks |
 | `COQUI_TOS_AGREED` | set to `1` by the app | Skip the CPML license interactive prompt |
 | `HF_TOKEN` | unset | Optional Hugging Face token for model download |
 
@@ -141,7 +158,7 @@ Frontend: `NEXT_PUBLIC_API_BASE` (default `http://localhost:8000`).
 ```bash
 cd backend
 .venv\Scripts\activate
-pytest            # 28 tests: audio preprocessing, gap collapsing, API (fake engine), engine settings/seed, language list + Vietnamese routing
+pytest            # 38 tests: audio preprocessing, gap collapsing, Vietnamese compound formatting, API (fake engine), engine settings/seed, language list + Vietnamese routing
 ```
 
 ## License note

@@ -21,6 +21,7 @@ import soundfile as sf
 import torch
 
 from .audio import collapse_long_gaps, collapse_long_gaps_stream
+from .vietnamese import format_vietnamese
 from .config import (
     DEFAULT_LANGUAGE,
     MODEL_NAME,
@@ -228,6 +229,8 @@ class Engine:
         """Synthesize ``text`` cloned from ``ref_wav``. Returns float32 PCM at the model rate."""
         synth = self._synth_for(language)
         model = synth.tts_model
+        if language == VI_LANGUAGE:
+            text = format_vietnamese(text)
         sentences = synth.split_into_sentences(text, language)
         settings = self._settings(speed=speed, temperature=temperature)
 
@@ -264,6 +267,8 @@ class Engine:
         synth = self._synth_for(language)
         model = synth.tts_model
         settings = self._settings(speed=speed, temperature=temperature)
+        if language == VI_LANGUAGE:
+            text = format_vietnamese(text)
         sentences = synth.split_into_sentences(text, language)
 
         with self._lock:

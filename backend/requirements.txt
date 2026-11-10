@@ -15,6 +15,8 @@ torchaudio>=2.4.0
 coqui-tts[codec]>=0.27.0
 num2words>=0.5.13
 six>=1.17.0
+# Vietnamese word segmentation: joins compound words so XTTS reads them as one word.
+underthesea>=9.5.0
 
 # Tests
 pytest>=8.3.0
