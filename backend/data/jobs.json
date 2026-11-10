@@ -188,5 +188,43 @@
     "error": null,
     "sample_rate": 24000,
     "synth_seconds": 7.35
+  },
+  "314f64d91566": {
+    "id": "314f64d91566",
+    "text": "Xin ch\u00e0o! \u0110\u00e2y l\u00e0 gi\u1ecdng n\u00f3i \u0111\u01b0\u1ee3c nh\u00e2n b\u1ea3n b\u1eb1ng XTTS tr\u00ean m\u00e1y c\u1ee7a t\u00f4i.",
+    "voice_id": "1481415ddaa8",
+    "language": "vi",
+    "speed": 1.0,
+    "temperature": 0.75,
+    "seed": null,
+    "status": "done",
+    "progress": 1.0,
+    "created_at": "2026-11-10T19:48:59.829702+00:00",
+    "started_at": "2026-11-10T19:48:59.831703+00:00",
+    "finished_at": "2026-11-10T19:49:15.360225+00:00",
+    "audio_path": "F:\\Projects\\voice-ai\\backend\\data\\audio\\314f64d91566.wav",
+    "duration_seconds": 5.72,
+    "error": null,
+    "sample_rate": 24000,
+    "synth_seconds": 15.53
+  },
+  "df0ba910858c": {
+    "id": "df0ba910858c",
+    "text": "Con c\u00e1o n\u00e2u nhanh nh\u1eb9n nh\u1ea3y qua con ch\u00f3 n\u00e2u.",
+    "voice_id": "1481415ddaa8",
+    "language": "vi",
+    "speed": 1.0,
+    "temperature": 0.75,
+    "seed": null,
+    "status": "done",
+    "progress": 1.0,
+    "created_at": "2026-11-10T20:21:16.183261+00:00",
+    "started_at": "2026-11-10T20:21:16.184261+00:00",
+    "finished_at": "2026-11-10T20:21:25.719858+00:00",
+    "audio_path": "F:\\Projects\\voice-ai\\backend\\data\\audio\\df0ba910858c.wav",
+    "duration_seconds": 3.06,
+    "error": null,
+    "sample_rate": 24000,
+    "synth_seconds": 9.53
   }
 }
