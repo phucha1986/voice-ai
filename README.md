@@ -13,7 +13,7 @@ A local voice-cloning app: upload a reference audio clip of a speaker, type text
 voice-ai/
   backend/            FastAPI + XTTS engine + queue
     app/              config, device, audio, store, models, engine, queue, main
-    tests/            pytest suite (23 tests)
+    tests/            pytest suite (28 tests)
     requirements.txt
     data/             voices/, voices-vi/, audio/, tmp/, voices.json, jobs.json (created at runtime)
   frontend/           Next.js app
@@ -62,6 +62,12 @@ Open http://localhost:3000: upload a 2–30 s clip of one speaker (WAV/MP3/OGG/F
 For Vietnamese output, upload a **Vietnamese** reference clip: cloning transfers the speaker's timbre, so a Vietnamese sample yields a Vietnamese-sounding voice. The bundled voice `Giọng nói tiếng Việt` (`data/voices/`) is a 12 s Vietnamese clip; the earlier English `ref_voice.wav` sample has been removed.
 
 An optional **Seed** makes output reproducible: the same seed with the same text, voice and settings returns byte-identical audio. Leave it empty for varied output.
+
+## Pauses between sentences
+
+XTTS emits 200–380 ms of silence at the end (and sometimes the start) of each sentence chunk, so concatenating chunks produced an audible pause mid-speech. `collapse_long_gaps()` in `backend/app/audio.py` scans the output in 20 ms windows, classifies a window as silence when its RMS is below `max(0.02, 5 % of peak)`, and shortens any silence run longer than `MAX_GAP_MS` (default 150 ms, override with `VOICE_AI_MAX_GAP_MS`) down to that length, keeping the middle of the run so no speech is lost. Silence shorter than the cap is a natural word boundary and is left untouched, so prosody stays natural. `Engine.synthesize()` applies it after concatenation and `Engine.synthesize_stream()` applies the streaming variant, which holds back the buffer tail so a gap spanning two chunks is capped once.
+
+Measured on a two-sentence Vietnamese job (seed 1234): raw concatenation had gaps of 380/280/240 ms; the collapsed output has a 160 ms maximum and keeps the same speech samples. All stored jobs were regenerated with the fix.
 
 ## Languages
 
@@ -135,7 +141,7 @@ Frontend: `NEXT_PUBLIC_API_BASE` (default `http://localhost:8000`).
 ```bash
 cd backend
 .venv\Scripts\activate
-pytest            # 23 tests: audio preprocessing, API (fake engine), engine settings/seed, language list + Vietnamese routing
+pytest            # 28 tests: audio preprocessing, gap collapsing, API (fake engine), engine settings/seed, language list + Vietnamese routing
 ```
 
 ## License note

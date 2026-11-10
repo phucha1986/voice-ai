@@ -64,6 +64,11 @@ MAX_UPLOAD_BYTES = int(os.environ.get("VOICE_AI_MAX_UPLOAD_BYTES", 25 * 1024 * 1
 
 ALLOWED_EXTENSIONS = {".wav", ".mp3", ".ogg", ".flac", ".m4a", ".aac", ".opus", ".webm", ".mp4", ".json"}
 
+# XTTS leaves 200-380 ms of silence at sentence boundaries, which sounds like a
+# pause mid-speech. Longer silence runs are capped to this; shorter pauses (word
+# boundaries) are left alone so the prosody stays natural.
+MAX_GAP_MS = int(os.environ.get("VOICE_AI_MAX_GAP_MS", "150"))
+
 # --- Queue -------------------------------------------------------------
 
 QUEUE_WORKERS = int(os.environ.get("VOICE_AI_QUEUE_WORKERS", "1"))

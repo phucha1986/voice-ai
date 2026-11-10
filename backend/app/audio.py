@@ -16,11 +16,12 @@ import os
 import shutil
 import subprocess
 from pathlib import Path
+from typing import Iterator
 
 import numpy as np
 import soundfile as sf
 
-from .config import MAX_REF_SECONDS, MIN_REF_SECONDS, TARGET_SAMPLE_RATE
+from .config import MAX_GAP_MS, MAX_REF_SECONDS, MIN_REF_SECONDS, TARGET_SAMPLE_RATE
 
 # ffmpeg installed via winget is not always on PATH yet; probe known locations.
 # The BtbN *shared* build ships FFmpeg DLLs, which torchcodec needs on Windows;
@@ -126,6 +127,82 @@ def normalize(audio: np.ndarray, peak_dbfs: float = -1.0) -> np.ndarray:
         return audio
     target = 10.0 ** (peak_dbfs / 20.0)
     return (audio * (target / peak)).astype(np.float32)
+
+
+def collapse_long_gaps(
+    audio: np.ndarray,
+    *,
+    silence_rms: float = 0.02,
+    max_gap_ms: int = MAX_GAP_MS,
+    sample_rate: int = TARGET_SAMPLE_RATE,
+) -> np.ndarray:
+    """Cap silence runs longer than ``max_gap_ms`` down to that length.
+
+    XTTS leaves 200-380 ms of silence around each sentence chunk, so concatenating
+    them produces an audible pause mid-speech. Silence shorter than the cap is a
+    natural word boundary and is left untouched.
+    """
+    audio = np.asarray(audio, dtype=np.float32)
+    if audio.size == 0 or max_gap_ms <= 0:
+        return audio
+
+    window = max(1, int(sample_rate * 0.02))
+    starts = np.arange(0, audio.size, window)
+    counts = np.minimum(window, audio.size - starts)
+    rms = np.sqrt(np.add.reduceat(np.square(audio), starts) / counts)
+
+    peak = float(np.max(np.abs(audio)))
+    threshold = max(silence_rms, 0.05 * peak)
+    quiet = rms < threshold
+
+    max_samples = int(max_gap_ms * sample_rate / 1000)
+    out: list[np.ndarray] = []
+    index = 0
+
+    while index < rms.size:
+        end = index
+        while end < rms.size and quiet[end] == quiet[index]:
+            end += 1
+        stop = starts[end] if end < starts.size else audio.size
+        segment = audio[starts[index] : stop]
+        if quiet[index] and segment.size > max_samples:
+            # Keep the middle of the run so neither side loses speech.
+            start = (segment.size - max_samples) // 2
+            segment = segment[start : start + max_samples]
+        out.append(segment)
+        index = end
+
+    return np.concatenate(out) if out else np.zeros(0, dtype=np.float32)
+
+
+def collapse_long_gaps_stream(
+    chunks: Iterator[np.ndarray],
+    *,
+    silence_rms: float = 0.02,
+    max_gap_ms: int = MAX_GAP_MS,
+    sample_rate: int = TARGET_SAMPLE_RATE,
+) -> Iterator[np.ndarray]:
+    """Streaming variant of :func:`collapse_long_gaps`.
+
+    The tail of the buffer is held back so a silence run that spans two chunks is
+    still recognised as one run and capped once.
+    """
+    hold = int(max_gap_ms * sample_rate / 1000) + int(sample_rate * 0.02)
+    buffer = np.zeros(0, dtype=np.float32)
+
+    for chunk in chunks:
+        buffer = np.concatenate([buffer, np.asarray(chunk, dtype=np.float32)])
+        collapsed = collapse_long_gaps(
+            buffer, silence_rms=silence_rms, max_gap_ms=max_gap_ms, sample_rate=sample_rate
+        )
+        if collapsed.size > hold:
+            yield collapsed[: collapsed.size - hold]
+            buffer = collapsed[collapsed.size - hold :]
+
+    if buffer.size:
+        yield collapse_long_gaps(
+            buffer, silence_rms=silence_rms, max_gap_ms=max_gap_ms, sample_rate=sample_rate
+        )
 
 
 def fit_duration(audio: np.ndarray, sample_rate: int = TARGET_SAMPLE_RATE) -> np.ndarray:

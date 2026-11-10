@@ -20,6 +20,7 @@ import numpy as np
 import soundfile as sf
 import torch
 
+from .audio import collapse_long_gaps, collapse_long_gaps_stream
 from .config import (
     DEFAULT_LANGUAGE,
     MODEL_NAME,
@@ -243,7 +244,9 @@ class Engine:
                 if progress_cb:
                     progress_cb((i + 1) / len(sentences))
 
-        return np.concatenate(chunks) if chunks else np.zeros(0, dtype=np.float32)
+        if not chunks:
+            return np.zeros(0, dtype=np.float32)
+        return collapse_long_gaps(np.concatenate(chunks))
 
     def synthesize_stream(
         self,
@@ -266,18 +269,22 @@ class Engine:
         with self._lock:
             self._apply_seed(seed)
             cond_latent, embedding = self._clone(model, ref_wav, voice_id, self._voice_dir_for(language))
-            for sentence in sentences:
-                for chunk in model.inference_stream(
-                    sentence,
-                    language,
-                    cond_latent,
-                    embedding,
-                    stream_chunk_size=chunk_size,
-                    **settings,
-                ):
-                    if isinstance(chunk, torch.Tensor):
-                        chunk = chunk.cpu().numpy()
-                    yield np.asarray(chunk, dtype=np.float32)
+
+            def raw_chunks() -> Iterator[np.ndarray]:
+                for sentence in sentences:
+                    for chunk in model.inference_stream(
+                        sentence,
+                        language,
+                        cond_latent,
+                        embedding,
+                        stream_chunk_size=chunk_size,
+                        **settings,
+                    ):
+                        if isinstance(chunk, torch.Tensor):
+                            chunk = chunk.cpu().numpy()
+                        yield np.asarray(chunk, dtype=np.float32)
+
+            yield from collapse_long_gaps_stream(raw_chunks())
 
     def save_wav(self, wav: np.ndarray, path: str) -> dict:
         """Write float32 PCM to a WAV file at the model sample rate."""
