@@ -55,5 +55,24 @@
     "error": null,
     "sample_rate": 24000,
     "synth_seconds": 3.98
+  },
+  "bc4d0499d379": {
+    "id": "bc4d0499d379",
+    "text": "Em r\u1ea5t nhanh nh\u1eb9n v\u00e0 vui v\u1ebb. H\u00f4m nay tr\u1eddi r\u1ea5t \u0111\u1eb9p, t\u00f4i mu\u1ed1n \u0111i ch\u01a1i c\u00f9ng b\u1ea1n b\u00e8 \u1edf c\u00f4ng vi\u00ean.",
+    "voice_id": "b43132935a96",
+    "language": "vi",
+    "speed": 1.0,
+    "temperature": 0.75,
+    "seed": null,
+    "status": "done",
+    "progress": 1.0,
+    "created_at": "2026-11-11T00:16:10.816764+00:00",
+    "started_at": "2026-11-11T00:16:10.817783+00:00",
+    "finished_at": "2026-11-11T00:16:15.116488+00:00",
+    "audio_path": "F:\\Projects\\voice-ai\\backend\\data\\audio\\bc4d0499d379.wav",
+    "duration_seconds": 4.44,
+    "error": null,
+    "sample_rate": 24000,
+    "synth_seconds": 4.3
   }
 }

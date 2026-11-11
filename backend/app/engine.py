@@ -354,8 +354,10 @@ class Engine:
         progress_cb: ProgressCb | None,
     ) -> np.ndarray:
         """VieNeu path: phoneme-level phonemizer + type-aware chunking, so no
-        ``format_vietnamese``/``collapse_long_gaps``. Reference enrolment is cached
-        inside VieNeu by clip content, so there is no voice file to manage."""
+        ``format_vietnamese``. Reference enrolment is cached inside VieNeu by clip
+        content, so there is no voice file to manage. VieNeu still leaves long
+        silence between its chunks, so ``collapse_long_gaps`` caps them the same
+        way the streaming path does."""
         self.load_vieneu()
         model = self._vieneu
         assert model is not None
@@ -366,7 +368,8 @@ class Engine:
 
         if progress_cb:
             progress_cb(1.0)
-        return self._resample_to_target(np.asarray(wav, dtype=np.float32), model.sample_rate)
+        resampled = self._resample_to_target(np.asarray(wav, dtype=np.float32), model.sample_rate)
+        return collapse_long_gaps(resampled)
 
     def _synthesize_vieneu_stream(
         self,

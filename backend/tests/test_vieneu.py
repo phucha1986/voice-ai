@@ -8,7 +8,7 @@ import numpy as np
 import soundfile as sf
 from fastapi.testclient import TestClient
 
-from app.config import TARGET_SAMPLE_RATE, VIENEU_ENABLED
+from app.config import MAX_GAP_MS, TARGET_SAMPLE_RATE, VIENEU_ENABLED
 from app.engine import engine
 
 
@@ -123,6 +123,27 @@ def test_stream_is_resampled_and_flushed(monkeypatch) -> None:
         chunks = list(engine.synthesize_stream("Xin chào.", ref_wav="ref.wav", voice_id="v", language="vi"))
         assert sum(len(c) for c in chunks) == TARGET_SAMPLE_RATE
         assert fake.calls[0]["stream"] is True
+    finally:
+        engine._vieneu = None
+
+
+def test_blocking_path_collapses_long_silence(monkeypatch) -> None:
+    """VieNeu leaves >1 s silence between chunks; queue jobs must not keep it."""
+    fake = FakeVieneu(24_000)
+    monkeypatch.setattr("app.engine.VIENEU_ENABLED", True)
+    monkeypatch.setattr("app.engine.VIENEU_MODE", "v3turbo")
+    engine._vieneu = fake
+    monkeypatch.setattr(engine, "load_vieneu", lambda: None)
+    try:
+        audio = np.zeros(24_000, dtype=np.float32)
+        audio[:6000] = 0.5
+        audio[-6000:] = 0.5
+        fake.infer = lambda text, *, ref_audio, **kwargs: audio
+        wav = engine.synthesize("Em rất nhanh nhẹn.", ref_wav="ref.wav", voice_id="v", language="vi")
+        # 1.2 s of speech + at most 100 ms of the original 1.6 s gap.
+        assert len(wav) <= TARGET_SAMPLE_RATE + int(MAX_GAP_MS * TARGET_SAMPLE_RATE / 1000)
+        assert np.abs(wav[:6000]).max() == 0.5
+        assert np.abs(wav[-6000:]).max() == 0.5
     finally:
         engine._vieneu = None
 
