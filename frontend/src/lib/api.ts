@@ -35,6 +35,7 @@ export interface Health {
   ffmpeg: boolean;
   model_loaded: boolean;
   vietnamese_engine: string;
+  vieneu_ready: boolean;
   languages: string[];
   queued: number;
 }

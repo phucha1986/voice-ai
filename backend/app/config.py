@@ -66,11 +66,19 @@ SUPPORTED_LANGUAGES = [*XTTS_V2_LANGUAGES, VI_LANGUAGE] if VI_MODEL_ID else list
 VIENEU_ENABLED = os.environ.get("VOICE_AI_VIENEU", "1") != "0"
 # "v3turbo" (48 kHz, best quality) or "v3nano" (24 kHz, 48M params, for weak CPUs).
 VIENEU_MODE = os.environ.get("VOICE_AI_VIENEU_MODE", "v3turbo")
-# ONNX weights for v3turbo: "fp32" (RTF ~2.9 here) or "int8" (needs a VNNI-capable
-# CPU, otherwise the audio is distorted).
+# ONNX weights for v3turbo. Measured on a 6-core CPU (blocking infer, RTF =
+# synthesis seconds / audio seconds): fp32 ~0.60-0.63, int8 ~0.38-0.43 (~1.45x
+# faster). int8 needs a VNNI-capable CPU and drops tone-mark fidelity on
+# compound words ("nhanh nhẹn" comes back as "nhanh nhẹ"), so fp32 stays default
+# and int8 is opt-in when speed matters more than pronunciation.
 VIENEU_PRECISION = os.environ.get("VOICE_AI_VIENEU_PRECISION", "fp32")
-# ONNX Runtime intra-op threads; 0 = about half the physical cores.
+# ONNX Runtime intra-op threads; 0 = about half the physical cores, which is the
+# fastest setting measured (3 threads is ~25% slower, 12 threads is no faster).
 VIENEU_THREADS = int(os.environ.get("VOICE_AI_VIENEU_THREADS", "0"))
+# Load VieNeu (and enrol the newest voice) in the background at startup instead
+# of on the first job, which otherwise pays ~12 s of model download plus ~2 s of
+# reference enrolment. Set VOICE_AI_VIENEU_PRELOAD=0 to keep it lazy.
+VIENEU_PRELOAD = os.environ.get("VOICE_AI_VIENEU_PRELOAD", "1") != "0"
 # Languages VieNeu serves. English stays on XTTS v2 (it is faster there).
 VIENEU_LANGUAGES = ["vi"]
 

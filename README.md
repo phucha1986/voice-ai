@@ -100,10 +100,20 @@ Two modes are supported, both torch-free ONNX on CPU (the app pins `device="cpu"
 
 | Mode | Sample rate | Notes |
 |---|---|---|
-| `v3turbo` (default) | 48 kHz | Downsampled to 24 kHz with `soxr` (blocking and streaming). `fp32` is faster and clearer than `int8` on this machine; `int8` needs a VNNI-capable CPU or audio is distorted. `speed`/`seed` are ignored — `temperature` is mapped (clamped 0.3–0.9). |
+| `v3turbo` (default) | 48 kHz | Downsampled to 24 kHz with `soxr` (blocking and streaming). `fp32` is the default: `int8` is ~1.45x faster but drops tone marks on compound words (`nhanh nhẹn` → `nhanh nhẹ`) and needs a VNNI-capable CPU. `speed`/`seed` are ignored — `temperature` is mapped (clamped 0.3–0.9). |
 | `v3nano` | 24 kHz | No resampling needed. Smaller/faster per step but slower overall on this CPU; supports `speed` and `seed`. |
 
-Measured on an i5-11400F, cloning the bundled Vietnamese reference, for a two-sentence paragraph: XTTS finetune RTF ~0.6 with 12 silence runs > 120 ms (8.94 s of silence); VieNeu `v3turbo` fp32 RTF ~2.9 with 2 runs (1.58 s). A live job through `POST /generate` produced a 4.64 s 24 kHz WAV with a single 0.41 s run and transcribed as `vi` (probability 1.00). Reference enrolment is memoised by clip content inside VieNeu, so repeat jobs with the same voice pay no enrolment cost.
+Measured on an i5-11400F (6 cores), cloning the bundled Vietnamese reference, blocking `infer`, RTF = synthesis seconds / audio seconds:
+
+| Setting | RTF | Notes |
+|---|---|---|
+| `v3turbo` `fp32`, `THREADS=0` | 0.60–0.63 | Default and fastest measured setting. |
+| `v3turbo` `fp32`, `THREADS=3` | 0.70–0.81 | ~25% slower; ONNX already caps intra-op threads at half the cores. |
+| `v3turbo` `fp32`, `THREADS=12` | 0.61–0.63 | No gain over `0`. |
+| `v3turbo` `int8`, `THREADS=0` | 0.38–0.43 | ~1.45x faster, but Whisper reads `nhanh nhẹn` as `nhanh nhẹ` (tone mark lost), so it is opt-in. |
+| `v3nano` | 0.96–2.78 | Slower than `v3turbo` except for long text. |
+
+Startup is warm, not lazy: `VIENEU_PRELOAD` (default on) loads VieNeu and enrols the newest voice reference on a background thread, so the first job does not pay the ~12 s model load plus the ~13 s first-enrolment (denoise + speaker encoder). `POST /voices` enrols the new clip the same way. `GET /health` reports `vieneu_ready`, and the UI shows `tiếng Việt: v3turbo (sẵn sàng)` once warm. Set `VOICE_AI_VIENEU_PRELOAD=0` to keep it lazy. Reference enrolment is memoised by clip content inside VieNeu, so repeat jobs with the same voice pay no enrolment cost.
 
 ## Languages
 
@@ -153,7 +163,8 @@ Force a device with `VOICE_AI_DEVICE=cpu` (force CPU even when a GPU exists) or 
 | `VOICE_AI_VIENEU` | `1` | Set `0` to serve `vi` with the XTTS finetune instead of VieNeu-TTS |
 | `VOICE_AI_VIENEU_MODE` | `v3turbo` | VieNeu mode: `v3turbo` (48 kHz, resampled) or `v3nano` (24 kHz) |
 | `VOICE_AI_VIENEU_PRECISION` | `fp32` | VieNeu ONNX precision (`fp32` or `int8`, `v3turbo` only) |
-| `VOICE_AI_VIENEU_THREADS` | `0` | ONNX inference threads (`0` = auto) |
+| `VOICE_AI_VIENEU_THREADS` | `0` | ONNX inference threads (`0` = auto; `3` measured ~25% slower, `12` no gain) |
+| `VOICE_AI_VIENEU_PRELOAD` | `1` | Set `0` to skip the startup warm-up (model load + reference enrolment on a background thread) |
 | `COQUI_TOS_AGREED` | set to `1` by the app | Skip the CPML license interactive prompt |
 | `HF_TOKEN` | unset | Optional Hugging Face token for model download |
 

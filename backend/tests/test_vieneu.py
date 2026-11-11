@@ -6,6 +6,7 @@ from types import SimpleNamespace
 
 import numpy as np
 import soundfile as sf
+from fastapi.testclient import TestClient
 
 from app.config import TARGET_SAMPLE_RATE, VIENEU_ENABLED
 from app.engine import engine
@@ -135,3 +136,32 @@ def test_other_languages_stay_on_xtts(monkeypatch) -> None:
         assert engine._synth_for("en") is stock.synthesizer
     finally:
         engine._tts = None
+
+
+def test_startup_preload_enrols_newest_voice(monkeypatch) -> None:
+    """Startup must warm VieNeu and enrol the newest reference so job #1 is fast."""
+    calls: list[str] = []
+    monkeypatch.setattr("app.main.store", SimpleNamespace(list_voices=lambda: [
+        {"ref_path": "new.wav"},
+        {"ref_path": "old.wav"},
+    ]))
+    monkeypatch.setattr(engine, "enrol_vieneu_reference", lambda ref: calls.append(ref))
+    monkeypatch.setattr("app.main.VIENEU_PRELOAD", True)
+    monkeypatch.setattr("app.main._spawn_preload", lambda target: target())
+
+    from app.main import app
+
+    with TestClient(app):
+        assert calls == ["new.wav"]
+
+
+def test_startup_preload_can_be_disabled(monkeypatch) -> None:
+    calls: list[str] = []
+    monkeypatch.setattr(engine, "enrol_vieneu_reference", lambda ref: calls.append(ref))
+    monkeypatch.setattr("app.main.VIENEU_PRELOAD", False)
+    monkeypatch.setattr("app.main._spawn_preload", lambda target: target())
+
+    from app.main import app
+
+    with TestClient(app):
+        assert calls == []

@@ -7,6 +7,8 @@ import tempfile
 _tmp = tempfile.mkdtemp(prefix="voice-ai-test-")
 os.environ["VOICE_AI_DATA_DIR"] = os.path.join(_tmp, "data")
 os.environ["VOICE_AI_DEVICE"] = "cpu"
+# Tests must not download VieNeu in a background preload thread.
+os.environ["VOICE_AI_VIENEU_PRELOAD"] = "0"
 
 import pytest
 from fastapi.testclient import TestClient

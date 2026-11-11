@@ -53,6 +53,7 @@ class HealthOut(BaseModel):
     languages: list[str]
     queued: int
     vietnamese_engine: str = "xtts-finetune"
+    vieneu_ready: bool = False
 
 
 class LanguagesOut(BaseModel):

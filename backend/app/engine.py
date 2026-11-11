@@ -184,6 +184,20 @@ class Engine:
                 )
             logger.info("VieNeu model ready (sample rate %s Hz)", self._vieneu.sample_rate)
 
+    def enrol_vieneu_reference(self, ref_wav: str) -> None:
+        """Warm VieNeu's reference cache for ``ref_wav``.
+
+        The speaker encoder is loaded lazily on the first clone and the clip is
+        denoised/enrolled on every new clip (VieNeu memoises enrolment by clip
+        content), so the first job with a voice pays ~13 s of extra work. Enroling
+        the newest reference at startup removes that cost from the first job.
+        """
+        self.load_vieneu()
+        model = self._vieneu
+        assert model is not None
+        with self._lock:
+            model.encode_reference(ref_wav, denoise=True)
+
     @property
     def device_info(self) -> DeviceInfo:
         if self._device_info is None:

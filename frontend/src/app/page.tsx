@@ -99,6 +99,19 @@ export default function Home() {
     refreshJobs();
   }, [refreshVoices, refreshJobs]);
 
+  // VieNeu khởi động nền sau khi server bật; polling cho tới khi sẵn sàng.
+  useEffect(() => {
+    if (health === null || health.vietnamese_engine === "xtts-finetune" || health.vieneu_ready) {
+      return;
+    }
+    const timer = setInterval(() => {
+      getHealth()
+        .then(setHealth)
+        .catch(() => {});
+    }, 3000);
+    return () => clearInterval(timer);
+  }, [health]);
+
   // SSE: subscribe to progress for every active job.
   const streamsRef = useRef<Map<string, EventSource>>(new Map());
   useEffect(() => {
@@ -265,7 +278,7 @@ export default function Home() {
                 model {health.model_loaded ? "đã nạp" : "chưa nạp"}
               </span>
               <span className={health.vietnamese_engine === "xtts-finetune" ? "pill" : "pill ok"} data-pw="health-vi-engine">
-                tiếng Việt: {health.vietnamese_engine}
+                tiếng Việt: {health.vietnamese_engine}{health.vietnamese_engine !== "xtts-finetune" && health.vieneu_ready ? " (sẵn sàng)" : ""}
               </span>
               <span className={health.ffmpeg ? "pill ok" : "pill bad"} data-pw="health-ffmpeg">
                 ffmpeg {health.ffmpeg ? "sẵn sàng" : "thiếu"}

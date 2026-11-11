@@ -21,9 +21,11 @@ Endpoints:
 from __future__ import annotations
 
 import logging
+import threading
 import uuid
 from contextlib import asynccontextmanager
 from pathlib import Path
+from typing import Callable
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
@@ -39,6 +41,7 @@ from .config import (
     SUPPORTED_LANGUAGES,
     VIENEU_ENABLED,
     VIENEU_MODE,
+    VIENEU_PRELOAD,
     TMP_DIR,
     VI_VOICE_DIR,
     VOICES_DIR,
@@ -65,8 +68,38 @@ async def lifespan(_app: FastAPI):
             engine.load()
         except Exception as exc:  # noqa: BLE001
             logger.warning("Model preload failed: %s", exc)
+    if VIENEU_ENABLED and VIENEU_PRELOAD:
+        # VieNeu is CPU-only and takes ~12 s to load plus ~13 s to enrol a
+        # reference, so warm it in the background instead of on the first job.
+        _spawn_preload(_preload_vieneu)
     yield
     generation_queue.stop()
+
+
+def _spawn_preload(target: Callable[[], None]) -> None:
+    """Run ``target`` on a daemon thread so startup is not blocked."""
+    threading.Thread(target=target, daemon=True).start()
+
+
+def _preload_vieneu() -> None:
+    """Load VieNeu and enrol the newest voice reference, off the event loop."""
+    try:
+        voices = store.list_voices()
+        if voices:
+            engine.enrol_vieneu_reference(voices[0]["ref_path"])
+        else:
+            engine.load_vieneu()
+        logger.info("VieNeu preloaded")
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("VieNeu preload failed: %s", exc)
+
+
+def _enrol_new_voice(ref_path: str) -> None:
+    try:
+        engine.enrol_vieneu_reference(ref_path)
+        logger.info("VieNeu enrolled new reference %s", ref_path)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("VieNeu enrolment failed for %s: %s", ref_path, exc)
 
 
 app = FastAPI(title="Voice AI", version="1.0.0", lifespan=lifespan)
@@ -97,6 +130,7 @@ def health() -> HealthOut:
         languages=engine.languages if engine.loaded else SUPPORTED_LANGUAGES,
         queued=store.queued_count(),
         vietnamese_engine=VIENEU_MODE if VIENEU_ENABLED else "xtts-finetune",
+        vieneu_ready=engine.vieneu_loaded,
     )
 
 
@@ -144,6 +178,11 @@ async def create_voice(file: UploadFile = File(...), name: str | None = Form(Non
         },
     )
     logger.info("Voice %s created (%.1fs reference)", record["id"], meta["duration_seconds"])
+    if VIENEU_ENABLED and VIENEU_PRELOAD:
+        # Enrol the new reference in the background: VieNeu denoises + encodes
+        # each new clip on first use (~13 s), which would otherwise land on the
+        # first job generated from this voice.
+        _spawn_preload(lambda: _enrol_new_voice(str(ref_path)))
     return VoiceOut(
         id=record["id"],
         name=record["name"],
