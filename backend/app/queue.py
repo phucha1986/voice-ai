@@ -77,10 +77,16 @@ class Queue:
         job = store.get_job(job_id)
         if job is None or job["status"] == "cancelled":
             return
-        voice = store.get_voice(job["voice_id"])
-        if voice is None:
-            store.update_job(job_id, status="failed", error="Không tìm thấy giọng nói", finished_at=_now())
-            return
+        preset = job.get("voice_preset")
+        if preset:
+            # Built-in VieNeu voice: no uploaded reference to look up.
+            ref_path = ""
+        else:
+            voice = store.get_voice(job["voice_id"])
+            if voice is None:
+                store.update_job(job_id, status="failed", error="Không tìm thấy giọng nói", finished_at=_now())
+                return
+            ref_path = voice["ref_path"]
 
         store.update_job(job_id, status="running", started_at=_now(), progress=0.0, error=None)
         out_path = AUDIO_DIR / f"{job_id}.wav"
@@ -95,8 +101,9 @@ class Queue:
         try:
             wav = engine.synthesize(
                 job["text"],
-                ref_wav=voice["ref_path"],
+                ref_wav=ref_path,
                 voice_id=job["voice_id"],
+                voice_preset=preset,
                 language=job["language"],
                 speed=job.get("speed", 1.0),
                 temperature=job.get("temperature", 0.75),

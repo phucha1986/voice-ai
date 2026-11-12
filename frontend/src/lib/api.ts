@@ -11,10 +11,18 @@ export interface Voice {
   source_filename: string | null;
 }
 
+export interface PresetVoice {
+  name: string;
+  description: string;
+  gender: string;
+  featured: number | null;
+}
+
 export interface Job {
   id: string;
   text: string;
   voice_id: string;
+  voice_preset: string | null;
   language: string;
   status: JobStatus;
   progress: number;
@@ -43,6 +51,7 @@ export interface Health {
 export interface GenerateRequest {
   text: string;
   voice_id: string;
+  voice_preset: string | null;
   language: string;
   speed: number;
   temperature: number;
@@ -73,6 +82,10 @@ export function uploadVoice(file: File, name: string | null): Promise<Voice> {
 
 export function listVoices(): Promise<Voice[]> {
   return http<Voice[]>("/voices");
+}
+
+export function listPresets(): Promise<PresetVoice[]> {
+  return http<PresetVoice[]>("/presets");
 }
 
 export function deleteVoice(id: string): Promise<void> {

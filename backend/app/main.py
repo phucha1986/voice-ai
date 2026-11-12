@@ -3,6 +3,7 @@
 Endpoints:
   GET  /health                     server + device status
   GET  /languages                  supported XTTS languages
+  GET  /presets                    built-in VieNeu voices (Vietnamese presets)
   POST /voices                     upload reference audio -> preprocess -> store
   GET  /voices                     list voices
   GET  /voices/{id}                voice metadata
@@ -40,6 +41,7 @@ from .config import (
     MODEL_NAME,
     SUPPORTED_LANGUAGES,
     VIENEU_ENABLED,
+    VIENEU_LANGUAGES,
     VIENEU_MODE,
     VIENEU_PRELOAD,
     TMP_DIR,
@@ -48,7 +50,7 @@ from .config import (
 )
 from .audio import ffmpeg_path, preprocess_reference
 from .engine import engine
-from .models import GenerateRequest, HealthOut, JobOut, LanguagesOut, VoiceOut
+from .models import GenerateRequest, HealthOut, JobOut, LanguagesOut, PresetVoiceOut, VoiceOut
 from .queue import generation_queue
 from .store import store
 
@@ -137,6 +139,18 @@ def health() -> HealthOut:
 @app.get("/languages", response_model=LanguagesOut)
 def languages() -> LanguagesOut:
     return LanguagesOut(languages=engine.languages if engine.loaded else SUPPORTED_LANGUAGES, default=DEFAULT_LANGUAGE)
+
+
+@app.get("/presets", response_model=list[PresetVoiceOut])
+def presets() -> list[PresetVoiceOut]:
+    """Built-in VieNeu voices. Loading VieNeu takes ~12 s on first call; the
+    startup preload thread normally warms it before the first request."""
+    if not VIENEU_ENABLED:
+        return []
+    try:
+        return [PresetVoiceOut(**p) for p in engine.preset_voices()]
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(503, f"VieNeu chưa sẵn sàng: {exc}") from exc
 
 
 # --- Voices ------------------------------------------------------------
@@ -256,7 +270,26 @@ def delete_voice(voice_id: str) -> dict:
 
 @app.post("/generate", response_model=JobOut)
 def generate(req: GenerateRequest) -> JobOut:
-    _voice_or_404(req.voice_id)
+    preset = (req.voice_preset or "").strip() or None
+    if preset:
+        # Built-in VieNeu voice: only the VieNeu languages can speak it.
+        if not VIENEU_ENABLED:
+            raise HTTPException(400, "VieNeu không bật — không dùng giọng dựng sẵn được")
+        if req.language not in VIENEU_LANGUAGES:
+            raise HTTPException(
+                400,
+                f"Giọng dựng sẵn chỉ dùng cho {', '.join(VIENEU_LANGUAGES)}; "
+                f"ngôn ngữ '{req.language}' cần giọng tham chiếu tải lên",
+            )
+        if not engine.has_preset(preset):
+            raise HTTPException(404, f"Không tìm thấy giọng dựng sẵn '{preset}'")
+        voice_id = ""
+    else:
+        if not req.voice_id:
+            raise HTTPException(422, "Hãy chọn giọng nói (tải lên hoặc giọng dựng sẵn)")
+        _voice_or_404(req.voice_id)
+        voice_id = req.voice_id
+
     text = req.text.strip()
     if not text:
         raise HTTPException(422, "Văn bản trống")
@@ -268,7 +301,8 @@ def generate(req: GenerateRequest) -> JobOut:
 
     job = store.create_job(
         text=text,
-        voice_id=req.voice_id,
+        voice_id=voice_id,
+        voice_preset=preset,
         language=req.language,
         speed=req.speed,
         temperature=req.temperature,

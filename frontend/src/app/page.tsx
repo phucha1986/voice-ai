@@ -11,11 +11,13 @@ import {
   jobDownloadUrl,
   jobStreamUrl,
   listJobs,
+  listPresets,
   listVoices,
   uploadVoice,
   voiceAudioUrl,
   type Health,
   type Job,
+  type PresetVoice,
   type Voice,
 } from "@/lib/api";
 
@@ -51,6 +53,12 @@ const LANGUAGE_LABELS: Record<string, string> = {
   hi: "Tiếng Hindi",
 };
 
+// Backend preset metadata uses English gender codes.
+const GENDER_LABELS: Record<string, string> = {
+  female: "Nữ",
+  male: "Nam",
+};
+
 export default function Home() {
   const [health, setHealth] = useState<Health | null>(null);
   const [voices, setVoices] = useState<Voice[]>([]);
@@ -65,6 +73,9 @@ export default function Home() {
     "Xin chào! Đây là giọng nói được nhân bản bằng XTTS trên máy của tôi.",
   );
   const [voiceId, setVoiceId] = useState("");
+  const [presets, setPresets] = useState<PresetVoice[]>([]);
+  const [presetsLoading, setPresetsLoading] = useState(true);
+  const [voicePreset, setVoicePreset] = useState("");
   const [language, setLanguage] = useState("vi");
   const [speed, setSpeed] = useState(1.0);
   const [temperature, setTemperature] = useState(0.75);
@@ -77,9 +88,26 @@ export default function Home() {
     try {
       const vs = await listVoices();
       setVoices(vs);
-      setVoiceId((cur) => cur && vs.some((v) => v.id === cur) ? cur : (vs[0]?.id ?? ""));
+      setVoiceId((cur) => {
+        if (cur && vs.some((v) => v.id === cur)) return cur;
+        return vs[0]?.id ?? "";
+      });
     } catch (e) {
       setNotice(`Không tải được danh sách giọng nói: ${e instanceof Error ? e.message : e}`);
+    }
+  }, []);
+
+  // Giọng dựng sẵn của VieNeu — chỉ dùng cho tiếng Việt.
+  const refreshPresets = useCallback(async () => {
+    setPresetsLoading(true);
+    try {
+      const ps = await listPresets();
+      setPresets(ps);
+      setVoicePreset((cur) => (cur && ps.some((p) => p.name === cur) ? cur : (ps[0]?.name ?? "")));
+    } catch (e) {
+      setNotice(`Không tải được danh sách giọng dựng sẵn: ${e instanceof Error ? e.message : e}`);
+    } finally {
+      setPresetsLoading(false);
     }
   }, []);
 
@@ -96,8 +124,9 @@ export default function Home() {
       .then(setHealth)
       .catch((e) => setNotice(`Không kết nối được backend: ${e instanceof Error ? e.message : e}`));
     refreshVoices();
+    refreshPresets();
     refreshJobs();
-  }, [refreshVoices, refreshJobs]);
+  }, [refreshVoices, refreshPresets, refreshJobs]);
 
   // VieNeu khởi động nền sau khi server bật; polling cho tới khi sẵn sàng.
   useEffect(() => {
@@ -193,10 +222,30 @@ export default function Home() {
       if (fileInputRef.current) fileInputRef.current.value = "";
       await refreshVoices();
       setVoiceId(v.id);
+      setVoicePreset("");
     } catch (e) {
       setNotice(`Tải lên thất bại: ${e instanceof Error ? e.message : e}`);
     } finally {
       setUploading(false);
+    }
+  }
+
+  function selectPreset(name: string) {
+    setVoicePreset(name);
+    setVoiceId("");
+  }
+
+  function selectUploaded(id: string) {
+    setVoiceId(id);
+    setVoicePreset("");
+  }
+
+  function onLanguageChange(next: string) {
+    setLanguage(next);
+    // Giọng dựng sẵn VieNeu chỉ nói tiếng Việt.
+    if (voicePreset && next !== "vi") {
+      setVoicePreset("");
+      if (voices.length > 0) setVoiceId(voices[0].id);
     }
   }
 
@@ -215,8 +264,12 @@ export default function Home() {
       setNotice("Hãy nhập văn bản cần tạo giọng nói.");
       return;
     }
-    if (!voiceId) {
-      setNotice("Hãy tải lên giọng nói tham chiếu trước.");
+    if (!voicePreset && !voiceId) {
+      setNotice("Hãy chọn giọng nói — giọng dựng sẵn hoặc giọng tham chiếu đã tải lên.");
+      return;
+    }
+    if (voicePreset && language !== "vi") {
+      setNotice("Giọng dựng sẵn chỉ dùng cho tiếng Việt.");
       return;
     }
     setGenerating(true);
@@ -224,7 +277,8 @@ export default function Home() {
     try {
       const job = await generate({
         text: text.trim(),
-        voice_id: voiceId,
+        voice_id: voicePreset ? "" : voiceId,
+        voice_preset: voicePreset || null,
         language,
         speed,
         temperature,
@@ -348,14 +402,56 @@ export default function Home() {
           placeholder="Nhập văn bản cần đọc…"
           data-pw="text-input"
         />
+        <div className="voice-menu" data-pw="voice-menu">
+          <div className="voice-menu-title">Giọng nói</div>
+          {language === "vi" ? (
+            presetsLoading ? (
+              <p className="empty">Đang tải danh sách giọng dựng sẵn…</p>
+            ) : presets.length === 0 ? (
+              <p className="empty">Chưa có giọng dựng sẵn (VieNeu chưa sẵn sàng).</p>
+            ) : (
+              presets.map((p) => (
+                <label className="voice-radio" key={p.name} data-pw={`voice-radio-${p.name}`}>
+                  <input
+                    type="radio"
+                    name="voice-choice"
+                    checked={voicePreset === p.name}
+                    onChange={() => selectPreset(p.name)}
+                  />
+                  <span className="voice-radio-name">
+                    {p.featured !== null ? "⭐ " : ""}
+                    {p.name}
+                  </span>
+                  <span className="voice-radio-desc">
+                    {p.description
+                      ? p.description
+                      : GENDER_LABELS[p.gender] ?? p.gender}
+                  </span>
+                </label>
+              ))
+            )
+          ) : (
+            <p className="empty">Giọng dựng sẵn chỉ có cho tiếng Việt — hãy chọn giọng tham chiếu đã tải lên.</p>
+          )}
+          {voices.length > 0 && (
+            <div className="voice-radio-uploaded" data-pw="voice-radio-uploaded">
+              {voices.map((v) => (
+                <label className="voice-radio" key={v.id} data-pw={`voice-radio-upload-${v.id}`}>
+                  <input
+                    type="radio"
+                    name="voice-choice"
+                    checked={!voicePreset && voiceId === v.id}
+                    onChange={() => selectUploaded(v.id)}
+                  />
+                  <span className="voice-radio-name">{v.name}</span>
+                  <span className="voice-radio-desc">giọng tải lên · {v.duration_seconds.toFixed(1)} giây</span>
+                </label>
+              ))}
+            </div>
+          )}
+        </div>
         <div className="row" style={{ marginTop: 12 }}>
-          <select value={voiceId} onChange={(e) => setVoiceId(e.target.value)} data-pw="voice-select" disabled={voices.length === 0}>
-            {voices.length === 0 && <option value="">(chưa có giọng nói)</option>}
-            {voices.map((v) => (
-              <option key={v.id} value={v.id}>{v.name}</option>
-            ))}
-          </select>
-          <select value={language} onChange={(e) => setLanguage(e.target.value)} data-pw="language-select">
+          <select value={language} onChange={(e) => onLanguageChange(e.target.value)} data-pw="language-select">
             {(health?.languages.length ? health.languages : FALLBACK_LANGUAGES).map((l) => (
               <option key={l} value={l}>{LANGUAGE_LABELS[l] ?? l}</option>
             ))}

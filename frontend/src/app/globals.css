@@ -178,6 +178,57 @@ button:disabled {
   margin-top: 12px;
 }
 
+.voice-menu {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 12px;
+}
+
+.voice-menu-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+  margin-bottom: 2px;
+}
+
+.voice-radio {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 12px;
+  cursor: pointer;
+}
+
+.voice-radio:has(input:checked) {
+  border-color: var(--accent);
+  background: #22304a;
+}
+
+.voice-radio input {
+  accent-color: var(--accent);
+}
+
+.voice-radio-name {
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.voice-radio-desc {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.voice-radio-uploaded {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 6px;
+}
+
 .voice-item {
   display: flex;
   align-items: center;

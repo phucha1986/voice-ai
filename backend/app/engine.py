@@ -198,6 +198,46 @@ class Engine:
         with self._lock:
             model.encode_reference(ref_wav, denoise=True)
 
+    def preset_voices(self) -> list[dict]:
+        """Built-in VieNeu voices (Vietnamese presets), editors' picks first.
+
+        Returns ``[{name, description, gender, featured}]``. VieNeu must be loaded;
+        an empty list when VieNeu is disabled or exposes no presets.
+        """
+        if not VIENEU_ENABLED:
+            return []
+        self.load_vieneu()
+        model = self._vieneu
+        assert model is not None
+        presets = getattr(model, "_preset_voices", {})
+        # Editors' picks (featured 1..N) first in that order, then the rest in
+        # insertion order — same ordering VieNeu's own dropdown uses.
+        ordered = sorted(
+            presets.items(),
+            key=lambda kv: (kv[1].get("featured") is None, kv[1].get("featured") or 0),
+        )
+        return [
+            {
+                "name": name,
+                "description": v.get("description", ""),
+                "gender": v.get("gender", ""),
+                "featured": v.get("featured"),
+            }
+            for name, v in ordered
+        ]
+
+    def has_preset(self, name: str) -> bool:
+        """True if ``name`` is a VieNeu preset voice (aliases resolved by the model)."""
+        if not VIENEU_ENABLED or not name:
+            return False
+        self.load_vieneu()
+        model = self._vieneu
+        assert model is not None
+        resolve = getattr(model, "resolve_voice_name", None)
+        if resolve is not None:
+            return resolve(name) is not None
+        return name in getattr(model, "_preset_voices", {})
+
     @property
     def device_info(self) -> DeviceInfo:
         if self._device_info is None:
@@ -306,13 +346,19 @@ class Engine:
         speed: float = 1.0,
         temperature: float = 0.75,
         seed: int | None = None,
+        voice_preset: str | None = None,
         progress_cb: ProgressCb | None = None,
     ) -> np.ndarray:
-        """Synthesize ``text`` cloned from ``ref_wav``. Returns float32 PCM at ``TARGET_SAMPLE_RATE``."""
+        """Synthesize ``text`` cloned from ``ref_wav``. Returns float32 PCM at ``TARGET_SAMPLE_RATE``.
+
+        ``voice_preset`` selects a built-in VieNeu voice instead of cloning
+        ``ref_wav``; it is only honoured on the VieNeu path (Vietnamese).
+        """
         if self._use_vieneu(language):
             return self._synthesize_vieneu(
                 text,
                 ref_wav=ref_wav,
+                voice_preset=voice_preset,
                 speed=speed,
                 temperature=temperature,
                 seed=seed,
@@ -348,6 +394,7 @@ class Engine:
         text: str,
         *,
         ref_wav: str,
+        voice_preset: str | None = None,
         speed: float,
         temperature: float,
         seed: int | None,
@@ -357,14 +404,21 @@ class Engine:
         ``format_vietnamese``. Reference enrolment is cached inside VieNeu by clip
         content, so there is no voice file to manage. VieNeu still leaves long
         silence between its chunks, so ``collapse_long_gaps`` caps them the same
-        way the streaming path does."""
+        way the streaming path does.
+
+        With ``voice_preset``, VieNeu uses the built-in preset voice (speaker
+        embedding + pre-encoded reference codes) instead of cloning ``ref_wav``.
+        """
         self.load_vieneu()
         model = self._vieneu
         assert model is not None
         kwargs = self._vieneu_kwargs(temperature=temperature, speed=speed, seed=seed)
 
         with self._lock:
-            wav = model.infer(text, ref_audio=ref_wav, **kwargs)
+            if voice_preset:
+                wav = model.infer(text, voice=voice_preset, **kwargs)
+            else:
+                wav = model.infer(text, ref_audio=ref_wav, **kwargs)
 
         if progress_cb:
             progress_cb(1.0)
@@ -376,6 +430,7 @@ class Engine:
         text: str,
         *,
         ref_wav: str,
+        voice_preset: str | None = None,
         speed: float,
         temperature: float,
         seed: int | None,
@@ -393,7 +448,12 @@ class Engine:
         )
 
         with self._lock:
-            for chunk in model.infer_stream(text, ref_audio=ref_wav, **kwargs):
+            stream = (
+                model.infer_stream(text, voice=voice_preset, **kwargs)
+                if voice_preset
+                else model.infer_stream(text, ref_audio=ref_wav, **kwargs)
+            )
+            for chunk in stream:
                 if resampler is None:
                     yield np.asarray(chunk, dtype=np.float32)
                 else:

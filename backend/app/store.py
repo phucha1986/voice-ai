@@ -101,12 +101,14 @@ class Store:
         speed: float = 1.0,
         temperature: float = 0.75,
         seed: int | None = None,
+        voice_preset: str | None = None,
     ) -> dict:
         job_id = uuid.uuid4().hex[:12]
         record = {
             "id": job_id,
             "text": text,
             "voice_id": voice_id,
+            "voice_preset": voice_preset,
             "language": language,
             "speed": speed,
             "temperature": temperature,
