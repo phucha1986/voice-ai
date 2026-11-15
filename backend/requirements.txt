@@ -7,20 +7,9 @@ numpy>=1.26.0
 soundfile>=0.12.1
 requests>=2.32.0
 
-# Speech synthesis (XTTS v2 voice cloning)
-# `coqui-tts` is the maintained fork of Coqui TTS; import name stays `TTS`.
-# The [codec] extra pulls in torchcodec, required by coqui-tts on torch >= 2.9.
-torch>=2.4.0
-torchaudio>=2.4.0
-coqui-tts[codec]>=0.27.0
-num2words>=0.5.13
-six>=1.17.0
-# Vietnamese word segmentation: joins compound words so XTTS reads them as one word.
-underthesea>=9.5.0
-
-# Optional second Vietnamese engine (VOICE_AI_VIENEU=1): VieNeu-TTS runs on a
-# torch-free ONNX CPU runtime and pronounces Vietnamese compound words as words.
-# soxr is used to downsample VieNeu v3 Turbo's 48 kHz output to 24 kHz.
+# Speech synthesis: VieNeu-TTS is the only engine. It runs on a torch-free ONNX
+# CPU runtime and speaks Vietnamese with voice cloning. soxr downsamples v3
+# Turbo's 48 kHz output to 24 kHz.
 vieneu==3.8.4
 soxr>=0.5.0
 

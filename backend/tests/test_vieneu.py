@@ -8,7 +8,7 @@ import numpy as np
 import soundfile as sf
 from fastapi.testclient import TestClient
 
-from app.config import MAX_GAP_MS, TARGET_SAMPLE_RATE, VIENEU_ENABLED
+from app.config import TARGET_SAMPLE_RATE
 from app.engine import engine
 
 
@@ -27,23 +27,6 @@ class FakeVieneu:
         self.calls.append({"text": text, "ref_audio": ref_audio, **kwargs, "stream": True})
         for _ in range(3):
             yield np.full(self.sample_rate // 3, 0.5, dtype=np.float32)
-
-
-def test_vieneu_is_on_by_default() -> None:
-    assert VIENEU_ENABLED is True
-    assert engine._use_vieneu("vi") is True
-
-
-def test_vieneu_can_be_disabled(monkeypatch) -> None:
-    monkeypatch.setattr("app.engine.VIENEU_ENABLED", False)
-    assert engine._use_vieneu("vi") is False
-    assert engine._use_vieneu("en") is False
-
-
-def test_vieneu_only_serves_its_own_languages(monkeypatch) -> None:
-    monkeypatch.setattr("app.engine.VIENEU_ENABLED", True)
-    assert engine._use_vieneu("vi") is True
-    assert engine._use_vieneu("en") is False  # English stays on XTTS v2
 
 
 def test_kwargs_skip_watermark_and_map_sampling(monkeypatch) -> None:
@@ -71,7 +54,6 @@ def test_temperature_is_clamped(monkeypatch) -> None:
 
 def test_48khz_output_is_downsampled_to_target(monkeypatch, tmp_path) -> None:
     fake = FakeVieneu(48_000)
-    monkeypatch.setattr("app.engine.VIENEU_ENABLED", True)
     monkeypatch.setattr("app.engine.VIENEU_MODE", "v3turbo")
     engine._vieneu = fake
     monkeypatch.setattr(engine, "load_vieneu", lambda: None)
@@ -92,15 +74,15 @@ def test_48khz_output_is_downsampled_to_target(monkeypatch, tmp_path) -> None:
         meta = engine.save_wav(wav, str(tmp_path / "out.wav"))
         assert meta["sample_rate"] == TARGET_SAMPLE_RATE
         assert meta["duration_seconds"] == 1.0
-        written_sr, _ = sf.read(str(tmp_path / "out.wav"))
-        assert len(written_sr) == TARGET_SAMPLE_RATE
+        written, sr = sf.read(str(tmp_path / "out.wav"))
+        assert sr == TARGET_SAMPLE_RATE
+        assert len(written) == TARGET_SAMPLE_RATE
     finally:
         engine._vieneu = None
 
 
 def test_native_24khz_output_is_not_resampled(monkeypatch) -> None:
     fake = FakeVieneu(24_000)
-    monkeypatch.setattr("app.engine.VIENEU_ENABLED", True)
     monkeypatch.setattr("app.engine.VIENEU_MODE", "v3nano")
     engine._vieneu = fake
     monkeypatch.setattr(engine, "load_vieneu", lambda: None)
@@ -112,25 +94,42 @@ def test_native_24khz_output_is_not_resampled(monkeypatch) -> None:
         engine._vieneu = None
 
 
+def test_preset_voice_is_used_inst_of_reference(monkeypatch) -> None:
+    fake = FakeVieneu(24_000)
+    monkeypatch.setattr("app.engine.VIENEU_MODE", "v3nano")
+    engine._vieneu = fake
+    monkeypatch.setattr(engine, "load_vieneu", lambda: None)
+
+    def infer_with_preset(text: str, *, voice: str, **kwargs) -> np.ndarray:
+        fake.calls.append({"text": text, "voice": voice, **kwargs})
+        return np.full(24_000, 0.5, dtype=np.float32)
+
+    fake.infer = infer_with_preset
+    try:
+        wav = engine.synthesize("Xin chào.", ref_wav="", voice_id="", voice_preset="Trúc Ly")
+        assert len(wav) == TARGET_SAMPLE_RATE
+        assert fake.calls[0]["voice"] == "Trúc Ly"
+    finally:
+        engine._vieneu = None
+
+
 def test_stream_is_resampled_and_flushed(monkeypatch) -> None:
     """Chunked 48 kHz output must reassemble into the exact 24 kHz length."""
     fake = FakeVieneu(48_000)
-    monkeypatch.setattr("app.engine.VIENEU_ENABLED", True)
     monkeypatch.setattr("app.engine.VIENEU_MODE", "v3turbo")
     engine._vieneu = fake
     monkeypatch.setattr(engine, "load_vieneu", lambda: None)
     try:
-        chunks = list(engine.synthesize_stream("Xin chào.", ref_wav="ref.wav", voice_id="v", language="vi"))
+        chunks = list(engine.synthesize_stream("Xin chào.", ref_wav="ref.wav"))
         assert sum(len(c) for c in chunks) == TARGET_SAMPLE_RATE
         assert fake.calls[0]["stream"] is True
     finally:
         engine._vieneu = None
 
 
-def test_blocking_path_collapses_long_silence(monkeypatch) -> None:
-    """VieNeu leaves >1 s silence between chunks; queue jobs must not keep it."""
+def test_blocking_output_is_saved_raw(monkeypatch, tmp_path) -> None:
+    """No gap collapsing: long silence between chunks survives untouched."""
     fake = FakeVieneu(24_000)
-    monkeypatch.setattr("app.engine.VIENEU_ENABLED", True)
     monkeypatch.setattr("app.engine.VIENEU_MODE", "v3turbo")
     engine._vieneu = fake
     monkeypatch.setattr(engine, "load_vieneu", lambda: None)
@@ -140,23 +139,13 @@ def test_blocking_path_collapses_long_silence(monkeypatch) -> None:
         audio[-6000:] = 0.5
         fake.infer = lambda text, *, ref_audio, **kwargs: audio
         wav = engine.synthesize("Em rất nhanh nhẹn.", ref_wav="ref.wav", voice_id="v", language="vi")
-        # 1.2 s of speech + at most 100 ms of the original 1.6 s gap.
-        assert len(wav) <= TARGET_SAMPLE_RATE + int(MAX_GAP_MS * TARGET_SAMPLE_RATE / 1000)
+        # Raw pass-through: the 1.6 s middle silence is kept.
+        assert len(wav) == TARGET_SAMPLE_RATE
+        assert np.abs(wav[6000:18000]).max() == 0.0
         assert np.abs(wav[:6000]).max() == 0.5
         assert np.abs(wav[-6000:]).max() == 0.5
     finally:
         engine._vieneu = None
-
-
-def test_other_languages_stay_on_xtts(monkeypatch) -> None:
-    """Enabling VieNeu must not change routing for the 17 XTTS languages."""
-    monkeypatch.setattr("app.engine.VIENEU_ENABLED", True)
-    stock = SimpleNamespace(synthesizer=SimpleNamespace(voice_dir="stock-voices"))
-    engine._tts = stock
-    try:
-        assert engine._synth_for("en") is stock.synthesizer
-    finally:
-        engine._tts = None
 
 
 def test_startup_preload_enrols_newest_voice(monkeypatch) -> None:

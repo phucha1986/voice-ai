@@ -46,7 +46,7 @@ class GenerateRequest(BaseModel):
     text: str = Field(min_length=1, max_length=4000)
     voice_id: str = ""
     voice_preset: str | None = None
-    language: str = "en"
+    language: str = "vi"
     speed: float = Field(default=1.0, ge=0.5, le=2.0)
     temperature: float = Field(default=0.75, ge=0.0, le=1.0)
     seed: int | None = None
@@ -63,7 +63,6 @@ class HealthOut(BaseModel):
     model_loaded: bool
     languages: list[str]
     queued: int
-    vietnamese_engine: str = "xtts-finetune"
     vieneu_ready: bool = False
 
 

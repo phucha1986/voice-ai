@@ -1,13 +1,14 @@
-"""FastAPI backend for the Voice AI app.
+"""FastAPI backend for the Voice AI app (VieNeu-TTS engine).
 
 Endpoints:
   GET  /health                     server + device status
-  GET  /languages                  supported XTTS languages
+  GET  /languages                  supported languages (Vietnamese only)
   GET  /presets                    built-in VieNeu voices (Vietnamese presets)
   POST /voices                     upload reference audio -> preprocess -> store
   GET  /voices                     list voices
   GET  /voices/{id}                voice metadata
   GET  /voices/{id}/audio          reference audio (preview)
+  GET  /preview                    short audition sample for a voice or preset
   DELETE /voices/{id}
   POST /generate                   enqueue a synthesis job
   GET  /jobs                       list jobs
@@ -21,6 +22,7 @@ Endpoints:
 
 from __future__ import annotations
 
+import hashlib
 import logging
 import threading
 import uuid
@@ -34,18 +36,15 @@ from fastapi.responses import FileResponse, StreamingResponse
 
 from .config import (
     ALLOWED_EXTENSIONS,
-    AUDIO_DIR,
     DEFAULT_LANGUAGE,
     MAX_TEXT_CHARS,
     MAX_UPLOAD_BYTES,
-    MODEL_NAME,
+    PREVIEW_DIR,
+    PREVIEW_TEXT,
     SUPPORTED_LANGUAGES,
-    VIENEU_ENABLED,
-    VIENEU_LANGUAGES,
     VIENEU_MODE,
     VIENEU_PRELOAD,
     TMP_DIR,
-    VI_VOICE_DIR,
     VOICES_DIR,
 )
 from .audio import ffmpeg_path, preprocess_reference
@@ -64,13 +63,7 @@ async def lifespan(_app: FastAPI):
     n = generation_queue.requeue_pending()
     if n:
         logger.info("Requeued %d pending job(s)", n)
-    if engine.device_info.is_gpu:
-        # Warm the model eagerly on GPU so the first job is not slow.
-        try:
-            engine.load()
-        except Exception as exc:  # noqa: BLE001
-            logger.warning("Model preload failed: %s", exc)
-    if VIENEU_ENABLED and VIENEU_PRELOAD:
+    if VIENEU_PRELOAD:
         # VieNeu is CPU-only and takes ~12 s to load plus ~13 s to enrol a
         # reference, so warm it in the background instead of on the first job.
         _spawn_preload(_preload_vieneu)
@@ -122,31 +115,28 @@ def health() -> HealthOut:
     info = engine.device_info
     return HealthOut(
         ok=True,
-        model=MODEL_NAME,
+        model=f"vieneu-{VIENEU_MODE}",
         device=info.device,
         backend=info.backend,
         device_description=info.description,
         gpu=info.is_gpu,
         ffmpeg=ffmpeg_path() is not None,
-        model_loaded=engine.loaded,
-        languages=engine.languages if engine.loaded else SUPPORTED_LANGUAGES,
+        model_loaded=engine.vieneu_loaded,
+        languages=list(SUPPORTED_LANGUAGES),
         queued=store.queued_count(),
-        vietnamese_engine=VIENEU_MODE if VIENEU_ENABLED else "xtts-finetune",
         vieneu_ready=engine.vieneu_loaded,
     )
 
 
 @app.get("/languages", response_model=LanguagesOut)
 def languages() -> LanguagesOut:
-    return LanguagesOut(languages=engine.languages if engine.loaded else SUPPORTED_LANGUAGES, default=DEFAULT_LANGUAGE)
+    return LanguagesOut(languages=list(SUPPORTED_LANGUAGES), default=DEFAULT_LANGUAGE)
 
 
 @app.get("/presets", response_model=list[PresetVoiceOut])
 def presets() -> list[PresetVoiceOut]:
     """Built-in VieNeu voices. Loading VieNeu takes ~12 s on first call; the
     startup preload thread normally warms it before the first request."""
-    if not VIENEU_ENABLED:
-        return []
     try:
         return [PresetVoiceOut(**p) for p in engine.preset_voices()]
     except Exception as exc:  # noqa: BLE001
@@ -192,7 +182,7 @@ async def create_voice(file: UploadFile = File(...), name: str | None = Form(Non
         },
     )
     logger.info("Voice %s created (%.1fs reference)", record["id"], meta["duration_seconds"])
-    if VIENEU_ENABLED and VIENEU_PRELOAD:
+    if VIENEU_PRELOAD:
         # Enrol the new reference in the background: VieNeu denoises + encodes
         # each new clip on first use (~13 s), which would otherwise land on the
         # first job generated from this voice.
@@ -251,16 +241,58 @@ def voice_audio(voice_id: str) -> FileResponse:
     return FileResponse(path, media_type="audio/wav", filename=f"{v['name']}-reference.wav")
 
 
+@app.get("/preview")
+def preview(voice_id: str | None = None, voice_preset: str | None = None) -> FileResponse:
+    """Short audition sample ("nghe thử") for one voice or preset, cached on disk.
+
+    Exactly one of ``voice_id`` / ``voice_preset`` must be given. The sample is
+    synthesised once and reused; an uploaded voice is regenerated when its
+    reference file changed after the cached sample was written.
+    """
+    preset = (voice_preset or "").strip() or None
+    vid = (voice_id or "").strip() or None
+    if preset and vid:
+        raise HTTPException(422, "Chỉ chọn một giọng nghe thử: voice_id hoặc voice_preset")
+    if preset:
+        if not engine.has_preset(preset):
+            raise HTTPException(404, f"Không tìm thấy giọng dựng sẵn '{preset}'")
+        ref_path = ""
+        cache_key = f"preset:{preset}"
+    elif vid:
+        v = _voice_or_404(vid)
+        ref_path = v["ref_path"]
+        cache_key = f"voice:{vid}"
+    else:
+        raise HTTPException(422, "Hãy chọn giọng nghe thử (voice_id hoặc voice_preset)")
+
+    cache_key = f"{cache_key}|{PREVIEW_TEXT}"
+    out = PREVIEW_DIR / f"{hashlib.sha256(cache_key.encode('utf-8')).hexdigest()[:16]}.wav"
+    ref = Path(ref_path) if ref_path else None
+    stale = True
+    if out.exists():
+        if ref is None or not ref.exists() or out.stat().st_mtime >= ref.stat().st_mtime:
+            stale = False
+    if stale:
+        wav = engine.synthesize(
+            PREVIEW_TEXT,
+            ref_wav=ref_path,
+            voice_id=vid or "",
+            language=DEFAULT_LANGUAGE,
+            voice_preset=preset,
+            temperature=0.4,
+            seed=42,
+        )
+        PREVIEW_DIR.mkdir(parents=True, exist_ok=True)
+        engine.save_wav(wav, str(out))
+    return FileResponse(out, media_type="audio/wav", filename="voice-preview.wav")
+
+
 @app.delete("/voices/{voice_id}")
 def delete_voice(voice_id: str) -> dict:
     v = _voice_or_404(voice_id)
     Path(v["ref_path"]).unlink(missing_ok=True)
-    # Drop the cached voice latents too (each model caches separately).
-    if engine.loaded:
-        voice_dir = engine._synth().voice_dir  # noqa: SLF001
-        (Path(voice_dir) / f"{voice_id}.pth").unlink(missing_ok=True)
-    if engine.vietnamese_loaded:
-        (VI_VOICE_DIR / f"{voice_id}.pth").unlink(missing_ok=True)
+    # VieNeu caches reference enrolment internally by clip content, so there is
+    # no voice-latent file to clean up here.
     store.delete_voice(voice_id)
     return {"deleted": voice_id}
 
@@ -271,16 +303,14 @@ def delete_voice(voice_id: str) -> dict:
 @app.post("/generate", response_model=JobOut)
 def generate(req: GenerateRequest) -> JobOut:
     preset = (req.voice_preset or "").strip() or None
+    if req.language != DEFAULT_LANGUAGE:
+        raise HTTPException(
+            400,
+            f"Ngôn ngữ '{req.language}' không được hỗ trợ. VieNeu chỉ nói "
+            f"tiếng Việt ('{DEFAULT_LANGUAGE}').",
+        )
     if preset:
-        # Built-in VieNeu voice: only the VieNeu languages can speak it.
-        if not VIENEU_ENABLED:
-            raise HTTPException(400, "VieNeu không bật — không dùng giọng dựng sẵn được")
-        if req.language not in VIENEU_LANGUAGES:
-            raise HTTPException(
-                400,
-                f"Giọng dựng sẵn chỉ dùng cho {', '.join(VIENEU_LANGUAGES)}; "
-                f"ngôn ngữ '{req.language}' cần giọng tham chiếu tải lên",
-            )
+        # Built-in VieNeu voice.
         if not engine.has_preset(preset):
             raise HTTPException(404, f"Không tìm thấy giọng dựng sẵn '{preset}'")
         voice_id = ""
@@ -295,9 +325,6 @@ def generate(req: GenerateRequest) -> JobOut:
         raise HTTPException(422, "Văn bản trống")
     if len(text) > MAX_TEXT_CHARS:
         raise HTTPException(413, f"Văn bản vượt quá {MAX_TEXT_CHARS} ký tự")
-    langs = engine.languages if engine.loaded else SUPPORTED_LANGUAGES
-    if req.language not in langs:
-        raise HTTPException(400, f"Ngôn ngữ '{req.language}' không được hỗ trợ. thử: {', '.join(langs)}")
 
     job = store.create_job(
         text=text,

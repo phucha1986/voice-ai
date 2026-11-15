@@ -1,7 +1,7 @@
 """Background generation queue.
 
 Jobs are enqueued by the API and drained by a small pool of worker threads.
-XTTS is not reentrant, so the engine lock serialises actual inference; extra
+VieNeu is not reentrant, so the engine lock serialises actual inference; extra
 workers mainly keep the queue draining while a job is waiting on the lock.
 """
 

@@ -222,6 +222,13 @@ button:disabled {
   font-size: 12px;
 }
 
+.voice-preview-btn {
+  margin-left: auto;
+  padding: 6px 12px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
 .voice-radio-uploaded {
   display: flex;
   flex-direction: column;

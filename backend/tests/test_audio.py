@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import numpy as np
+import pytest
 import soundfile as sf
 
-from app.audio import decode_to_mono, ffmpeg_path, fit_duration, normalize, preprocess_reference, strip_silence
+from app.audio import decode_to_mono, ffmpeg_path, fit_duration, preprocess_reference
 from app.config import MIN_REF_SECONDS, TARGET_SAMPLE_RATE
 
 
@@ -50,23 +51,6 @@ def test_decode_mp3_via_ffmpeg(tmp_path) -> None:
     assert len(mono) > TARGET_SAMPLE_RATE  # ~3s at 24 kHz
 
 
-def test_strip_silence_trims_edges() -> None:
-    audio = _tone(4.0, silence_edges=1.0)
-    trimmed = strip_silence(audio)
-    assert len(trimmed) < len(audio)
-    assert len(trimmed) > 2 * TARGET_SAMPLE_RATE  # speech core survives
-    assert float(np.max(np.abs(trimmed))) > 0.4  # speech kept
-    assert abs(trimmed[0]) <= 0.003  # leading pad is near-silent
-
-
-def test_normalize_targets_peak() -> None:
-    audio = _tone(2.0) * 0.05
-    out = normalize(audio)
-    peak = float(np.max(np.abs(out)))
-    # -1 dBFS == 10**(-1/20) == 0.891
-    assert 0.88 < peak <= 0.9
-
-
 def test_fit_duration_rejects_short_and_caps_long() -> None:
     short = _tone(1.0)
     try:
@@ -80,7 +64,7 @@ def test_fit_duration_rejects_short_and_caps_long() -> None:
     assert len(capped) <= int(30.0 * TARGET_SAMPLE_RATE)
 
 
-def test_preprocess_reference_writes_clean_wav(tmp_path) -> None:
+def test_preprocess_reference_writes_wav_unmodified(tmp_path) -> None:
     src = tmp_path / "raw.wav"
     _write(src, _tone(5.0, silence_edges=0.8) * 0.02)
     dest = tmp_path / "ref.wav"
@@ -92,4 +76,5 @@ def test_preprocess_reference_writes_clean_wav(tmp_path) -> None:
     assert meta["duration_seconds"] >= MIN_REF_SECONDS
     data, sr = sf.read(str(dest))
     assert sr == TARGET_SAMPLE_RATE
-    assert float(np.max(np.abs(data))) <= 1.0
+    # Raw pass-through: level is untouched (no normalisation, no gating).
+    assert float(np.max(np.abs(data))) == pytest.approx(0.01, abs=1e-3)

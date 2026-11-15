@@ -13,6 +13,7 @@ import {
   listJobs,
   listPresets,
   listVoices,
+  previewUrl,
   uploadVoice,
   voiceAudioUrl,
   type Health,
@@ -20,8 +21,6 @@ import {
   type PresetVoice,
   type Voice,
 } from "@/lib/api";
-
-const FALLBACK_LANGUAGES = ["vi"];
 
 const STATUS_LABELS: Record<string, string> = {
   queued: "trong hàng đợi",
@@ -31,27 +30,8 @@ const STATUS_LABELS: Record<string, string> = {
   cancelled: "đã hủy",
 };
 
-// Backend returns ISO codes; show them as Vietnamese names.
-const LANGUAGE_LABELS: Record<string, string> = {
-  vi: "Tiếng Việt",
-  en: "Tiếng Anh",
-  es: "Tiếng Tây Ban Nha",
-  fr: "Tiếng Pháp",
-  de: "Tiếng Đức",
-  it: "Tiếng Ý",
-  pt: "Tiếng Bồ Đào Nha",
-  pl: "Tiếng Ba Lan",
-  tr: "Tiếng Thổ Nhĩ Kỳ",
-  ru: "Tiếng Nga",
-  nl: "Tiếng Hà Lan",
-  cs: "Tiếng Séc",
-  ar: "Tiếng Ả Rập",
-  "zh-cn": "Tiếng Trung",
-  ja: "Tiếng Nhật",
-  hu: "Tiếng Hungary",
-  ko: "Tiếng Hàn",
-  hi: "Tiếng Hindi",
-};
+// VieNeu speaks Vietnamese only; job metadata is shown in Vietnamese.
+const LANGUAGE_LABEL = "Tiếng Việt";
 
 // Backend preset metadata uses English gender codes.
 const GENDER_LABELS: Record<string, string> = {
@@ -70,19 +50,58 @@ export default function Home() {
   const [uploading, setUploading] = useState(false);
 
   const [text, setText] = useState(
-    "Xin chào! Đây là giọng nói được nhân bản bằng XTTS trên máy của tôi.",
+    "Xin chào! Đây là giọng nói được nhân bản bằng VieNeu trên máy của tôi.",
   );
   const [voiceId, setVoiceId] = useState("");
   const [presets, setPresets] = useState<PresetVoice[]>([]);
   const [presetsLoading, setPresetsLoading] = useState(true);
   const [voicePreset, setVoicePreset] = useState("");
-  const [language, setLanguage] = useState("vi");
   const [speed, setSpeed] = useState(1.0);
   const [temperature, setTemperature] = useState(0.75);
   const [seed, setSeed] = useState<string>("");
   const [generating, setGenerating] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  // "Nghe thử": one audition clip at a time; only one voice can play.
+  const previewAudioRef = useRef<HTMLAudioElement | null>(null);
+  const [previewingKey, setPreviewingKey] = useState<string | null>(null);
+  const [previewPlayingKey, setPreviewPlayingKey] = useState<string | null>(null);
+
+  const stopPreview = useCallback(() => {
+    previewAudioRef.current?.pause();
+    previewAudioRef.current = null;
+    setPreviewingKey(null);
+    setPreviewPlayingKey(null);
+  }, []);
+
+  async function onPreview(key: string, voiceId: string, preset: string) {
+    stopPreview();
+    setPreviewingKey(key);
+    const el = new Audio(previewUrl(voiceId || undefined, preset || undefined));
+    previewAudioRef.current = el;
+    el.addEventListener("playing", () => setPreviewPlayingKey(key));
+    el.addEventListener("ended", () => {
+      if (previewAudioRef.current === el) {
+        previewAudioRef.current = null;
+        setPreviewingKey(null);
+        setPreviewPlayingKey(null);
+      }
+    });
+    el.addEventListener("error", () => {
+      if (previewAudioRef.current === el) {
+        previewAudioRef.current = null;
+        setPreviewingKey(null);
+        setPreviewPlayingKey(null);
+        setNotice("Không nghe thử được giọng này — backend có thể chưa sẵn sàng.");
+      }
+    });
+    try {
+      await el.play();
+    } catch {
+      /* load/play failure is reported by the error listener */
+    }
+  }
 
   const refreshVoices = useCallback(async () => {
     try {
@@ -130,7 +149,7 @@ export default function Home() {
 
   // VieNeu khởi động nền sau khi server bật; polling cho tới khi sẵn sàng.
   useEffect(() => {
-    if (health === null || health.vietnamese_engine === "xtts-finetune" || health.vieneu_ready) {
+    if (health === null || health.vieneu_ready) {
       return;
     }
     const timer = setInterval(() => {
@@ -205,6 +224,8 @@ export default function Home() {
     return () => {
       for (const es of streams.values()) es.close();
       streams.clear();
+      previewAudioRef.current?.pause();
+      previewAudioRef.current = null;
     };
   }, []);
 
@@ -240,15 +261,6 @@ export default function Home() {
     setVoicePreset("");
   }
 
-  function onLanguageChange(next: string) {
-    setLanguage(next);
-    // Giọng dựng sẵn VieNeu chỉ nói tiếng Việt.
-    if (voicePreset && next !== "vi") {
-      setVoicePreset("");
-      if (voices.length > 0) setVoiceId(voices[0].id);
-    }
-  }
-
   async function onDeleteVoice(id: string) {
     setNotice(null);
     try {
@@ -268,10 +280,6 @@ export default function Home() {
       setNotice("Hãy chọn giọng nói — giọng dựng sẵn hoặc giọng tham chiếu đã tải lên.");
       return;
     }
-    if (voicePreset && language !== "vi") {
-      setNotice("Giọng dựng sẵn chỉ dùng cho tiếng Việt.");
-      return;
-    }
     setGenerating(true);
     setNotice(null);
     try {
@@ -279,7 +287,7 @@ export default function Home() {
         text: text.trim(),
         voice_id: voicePreset ? "" : voiceId,
         voice_preset: voicePreset || null,
-        language,
+        language: "vi",
         speed,
         temperature,
         seed: seed.trim() ? Number(seed) : null,
@@ -315,7 +323,7 @@ export default function Home() {
       <div className="header">
         <div>
           <h1>Voice AI</h1>
-          <p className="tagline">Nhân bản giọng nói với XTTS v2 — tải lên audio tham chiếu, nhập văn bản, nhận giọng nói.</p>
+          <p className="tagline">Nhân bản giọng nói với VieNeu-TTS — tải lên audio tham chiếu, nhập văn bản, nhận giọng nói.</p>
         </div>
         <div className="health" data-pw="health">
           {health === null ? (
@@ -331,8 +339,8 @@ export default function Home() {
               <span className={health.model_loaded ? "pill ok" : "pill"} data-pw="health-model">
                 model {health.model_loaded ? "đã nạp" : "chưa nạp"}
               </span>
-              <span className={health.vietnamese_engine === "xtts-finetune" ? "pill" : "pill ok"} data-pw="health-vi-engine">
-                tiếng Việt: {health.vietnamese_engine}{health.vietnamese_engine !== "xtts-finetune" && health.vieneu_ready ? " (sẵn sàng)" : ""}
+              <span className={health.vieneu_ready ? "pill ok" : "pill"} data-pw="health-vi-engine">
+                VieNeu {health.vieneu_ready ? "sẵn sàng" : "đang khởi động…"}
               </span>
               <span className={health.ffmpeg ? "pill ok" : "pill bad"} data-pw="health-ffmpeg">
                 ffmpeg {health.ffmpeg ? "sẵn sàng" : "thiếu"}
@@ -383,6 +391,18 @@ export default function Home() {
               </div>
               <div className="row">
                 {voiceId === v.id && <span className="pill ok">đang chọn</span>}
+                <button
+                  className="secondary"
+                  onClick={() => onPreview(`upload:${v.id}`, v.id, "")}
+                  disabled={previewingKey === `upload:${v.id}`}
+                  data-pw={`voice-preview-${v.id}`}
+                >
+                  {previewingKey === `upload:${v.id}`
+                    ? previewPlayingKey === `upload:${v.id}`
+                      ? "Đang phát…"
+                      : "Đang tạo mẫu…"
+                    : "Nghe thử"}
+                </button>
                 <button className="danger" onClick={() => onDeleteVoice(v.id)} data-pw={`voice-delete-${v.id}`}>
                   Xóa
                 </button>
@@ -404,34 +424,45 @@ export default function Home() {
         />
         <div className="voice-menu" data-pw="voice-menu">
           <div className="voice-menu-title">Giọng nói</div>
-          {language === "vi" ? (
-            presetsLoading ? (
-              <p className="empty">Đang tải danh sách giọng dựng sẵn…</p>
-            ) : presets.length === 0 ? (
-              <p className="empty">Chưa có giọng dựng sẵn (VieNeu chưa sẵn sàng).</p>
-            ) : (
-              presets.map((p) => (
-                <label className="voice-radio" key={p.name} data-pw={`voice-radio-${p.name}`}>
-                  <input
-                    type="radio"
-                    name="voice-choice"
-                    checked={voicePreset === p.name}
-                    onChange={() => selectPreset(p.name)}
-                  />
-                  <span className="voice-radio-name">
-                    {p.featured !== null ? "⭐ " : ""}
-                    {p.name}
-                  </span>
-                  <span className="voice-radio-desc">
-                    {p.description
-                      ? p.description
-                      : GENDER_LABELS[p.gender] ?? p.gender}
-                  </span>
-                </label>
-              ))
-            )
+          {presetsLoading ? (
+            <p className="empty">Đang tải danh sách giọng dựng sẵn…</p>
+          ) : presets.length === 0 ? (
+            <p className="empty">Chưa có giọng dựng sẵn (VieNeu chưa sẵn sàng).</p>
           ) : (
-            <p className="empty">Giọng dựng sẵn chỉ có cho tiếng Việt — hãy chọn giọng tham chiếu đã tải lên.</p>
+            presets.map((p) => (
+              <label className="voice-radio" key={p.name} data-pw={`voice-radio-${p.name}`}>
+                <input
+                  type="radio"
+                  name="voice-choice"
+                  checked={voicePreset === p.name}
+                  onChange={() => selectPreset(p.name)}
+                />
+                <span className="voice-radio-name">
+                  {p.featured !== null ? "⭐ " : ""}
+                  {p.name}
+                </span>
+                <span className="voice-radio-desc">
+                  {p.description
+                    ? p.description
+                    : GENDER_LABELS[p.gender] ?? p.gender}
+                </span>
+                <button
+                  className="secondary voice-preview-btn"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    void onPreview(`preset:${p.name}`, "", p.name);
+                  }}
+                  disabled={previewingKey === `preset:${p.name}`}
+                  data-pw={`voice-preview-${p.name}`}
+                >
+                  {previewingKey === `preset:${p.name}`
+                    ? previewPlayingKey === `preset:${p.name}`
+                      ? "Đang phát…"
+                      : "Đang tạo mẫu…"
+                    : "Nghe thử"}
+                </button>
+              </label>
+            ))
           )}
           {voices.length > 0 && (
             <div className="voice-radio-uploaded" data-pw="voice-radio-uploaded">
@@ -445,17 +476,27 @@ export default function Home() {
                   />
                   <span className="voice-radio-name">{v.name}</span>
                   <span className="voice-radio-desc">giọng tải lên · {v.duration_seconds.toFixed(1)} giây</span>
+                  <button
+                    className="secondary voice-preview-btn"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      void onPreview(`upload:${v.id}`, v.id, "");
+                    }}
+                    disabled={previewingKey === `upload:${v.id}`}
+                    data-pw={`voice-preview-radio-${v.id}`}
+                  >
+                    {previewingKey === `upload:${v.id}`
+                      ? previewPlayingKey === `upload:${v.id}`
+                        ? "Đang phát…"
+                        : "Đang tạo mẫu…"
+                      : "Nghe thử"}
+                  </button>
                 </label>
               ))}
             </div>
           )}
         </div>
         <div className="row" style={{ marginTop: 12 }}>
-          <select value={language} onChange={(e) => onLanguageChange(e.target.value)} data-pw="language-select">
-            {(health?.languages.length ? health.languages : FALLBACK_LANGUAGES).map((l) => (
-              <option key={l} value={l}>{LANGUAGE_LABELS[l] ?? l}</option>
-            ))}
-          </select>
           <div className="slider-group">
             <span>Tốc độ <span className="val">{speed.toFixed(2)}</span></span>
             <input type="range" min={0.5} max={2} step={0.05} value={speed}
@@ -511,7 +552,7 @@ export default function Home() {
                   <audio controls src={jobAudioUrl(j.id)} preload="none" data-pw={`job-audio-${j.id}`} />
                   {j.duration_seconds !== null && (
                     <div className="meta" style={{ color: "var(--muted)", fontSize: 12, marginTop: 6 }}>
-                      {j.duration_seconds.toFixed(2)} giây · {LANGUAGE_LABELS[j.language] ?? j.language}
+                      {j.duration_seconds.toFixed(2)} giây · {LANGUAGE_LABEL}
                     </div>
                   )}
                 </>

@@ -1,15 +1,14 @@
-"""Device selection: prefer GPU (CUDA / ROCm), fall back to CPU.
+"""Device reporting for the health endpoint.
 
-PyTorch exposes AMD ROCm builds through ``torch.cuda`` as well, so
-``torch.cuda.is_available()`` covers both NVIDIA and AMD ROCm. ``torch-directml``
-(DirectML on Windows/AMD) is used when installed.
+VieNeu-TTS runs on a torch-free ONNX CPU runtime, so the backend is always CPU.
+``VOICE_AI_DEVICE`` is honoured for compatibility; ``cpu`` is the only value it
+accepts.
 """
 
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass
-
-import torch
 
 
 @dataclass(frozen=True)
@@ -23,38 +22,12 @@ class DeviceInfo:
         return self.device != "cpu"
 
 
-def detect_device() -> DeviceInfo:
-    """Pick the best available PyTorch backend."""
-    if torch.cuda.is_available():
-        hip = getattr(torch.version, "hip", None)
-        if hip:
-            name = torch.cuda.get_device_name(0)
-            return DeviceInfo("cuda", "rocm", f"ROCm {hip} · {name}")
-        name = torch.cuda.get_device_name(0)
-        return DeviceInfo("cuda", "cuda", f"CUDA · {name}")
-
-    # Optional AMD DirectML backend (pip install torch-directml).
-    try:
-        import torch_directml  # type: ignore[import-untyped]
-
-        if torch_directml.is_available():
-            name = torch_directml.device_name(0)
-            return DeviceInfo("directml", "directml", f"DirectML · {name}")
-    except ImportError:
-        pass
-
-    return DeviceInfo("cpu", "cpu", f"CPU ({torch.__version__})")
-
-
 def resolve_device() -> DeviceInfo:
-    """Honour ``VOICE_AI_DEVICE`` (``cpu`` forces CPU even when a GPU exists)."""
-    import os
-
+    """VieNeu is CPU-only (ONNX Runtime); report the CPU device."""
     forced = os.environ.get("VOICE_AI_DEVICE", "").strip().lower()
-    if forced == "cpu":
-        return DeviceInfo("cpu", "cpu", f"CPU ({torch.__version__}) [forced]")
-    if forced == "cuda":
-        if torch.cuda.is_available():
-            return detect_device()
-        raise RuntimeError("VOICE_AI_DEVICE=cuda requested but no CUDA/ROCm device is available")
-    return detect_device()
+    if forced and forced != "cpu":
+        raise RuntimeError(
+            f"VOICE_AI_DEVICE={forced} is unsupported: VieNeu runs on CPU only"
+        )
+    suffix = " [forced]" if forced == "cpu" else ""
+    return DeviceInfo("cpu", "cpu", f"CPU (ONNX Runtime){suffix}")

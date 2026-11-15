@@ -42,7 +42,6 @@ export interface Health {
   gpu: boolean;
   ffmpeg: boolean;
   model_loaded: boolean;
-  vietnamese_engine: string;
   vieneu_ready: boolean;
   languages: string[];
   queued: number;
@@ -118,6 +117,13 @@ export function getHealth(): Promise<Health> {
 
 export function voiceAudioUrl(id: string): string {
   return `${API_BASE}/voices/${id}/audio`;
+}
+
+export function previewUrl(voiceId?: string, voicePreset?: string): string {
+  const params = new URLSearchParams();
+  if (voicePreset) params.set("voice_preset", voicePreset);
+  if (voiceId) params.set("voice_id", voiceId);
+  return `${API_BASE}/preview?${params.toString()}`;
 }
 
 export function jobAudioUrl(id: string): string {

@@ -29,9 +29,9 @@ class FakeEngine:
 
     @property
     def languages(self) -> list[str]:
-        return ["en", "vi"]
+        return ["vi"]
 
-    def synthesize(self, text: str, *, ref_wav: str, voice_id: str, language: str = "en", **kw) -> np.ndarray:
+    def synthesize(self, text: str, *, ref_wav: str, voice_id: str, language: str = "vi", **kw) -> np.ndarray:
         self.calls.append({"text": text, "ref_wav": ref_wav, "voice_id": voice_id, "language": language, **kw})
         sr = 24000
         n = int(sr * min(2.0, max(0.5, len(text) / 40)))
@@ -98,7 +98,7 @@ def test_generate_flow_with_queue(client, monkeypatch) -> None:
         "/voices", files={"file": ("ref.wav", _make_wav(seconds=3.0), "audio/wav")}, data={"name": "V"}
     ).json()
 
-    r = client.post("/generate", json={"text": "Hello from the queue.", "voice_id": voice["id"], "language": "en"})
+    r = client.post("/generate", json={"text": "Hello from the queue.", "voice_id": voice["id"], "language": "vi"})
     assert r.status_code == 200
     job = r.json()
     assert job["status"] == "queued"
@@ -157,6 +157,53 @@ def test_delete_voice_removes_files(client) -> None:
     assert r.status_code == 200
     assert client.get(f"/voices/{voice['id']}").status_code == 404
     assert store.get_voice(voice["id"]) is None
+
+
+class FakeEngineWithPresets(FakeEngine):
+    def has_preset(self, name: str) -> bool:
+        return name == "Trúc Ly"
+
+
+def test_preview_voice_synthesizes_and_caches(client, monkeypatch) -> None:
+    fake = FakeEngineWithPresets()
+    monkeypatch.setattr("app.main.engine", fake)
+
+    voice = client.post(
+        "/voices", files={"file": ("ref.wav", _make_wav(seconds=3.0), "audio/wav")}, data={"name": "PV"}
+    ).json()
+
+    r = client.get(f"/preview?voice_id={voice['id']}")
+    assert r.status_code == 200
+    assert r.headers["content-type"].startswith("audio")
+    assert len(fake.calls) == 1
+
+    # Second call is served from the cache — no extra synthesis.
+    r2 = client.get(f"/preview?voice_id={voice['id']}")
+    assert r2.status_code == 200
+    assert len(fake.calls) == 1
+
+
+def test_preview_preset(client, monkeypatch) -> None:
+    fake = FakeEngineWithPresets()
+    monkeypatch.setattr("app.main.engine", fake)
+
+    r = client.get("/preview?voice_preset=Trúc Ly")
+    assert r.status_code == 200
+    assert fake.calls and fake.calls[0]["voice_preset"] == "Trúc Ly"
+
+    assert client.get("/preview?voice_preset=KhôngTồnTại").status_code == 404
+
+
+def test_preview_validation(client, monkeypatch) -> None:
+    monkeypatch.setattr("app.main.engine", FakeEngineWithPresets())
+
+    voice = client.post(
+        "/voices", files={"file": ("ref.wav", _make_wav(seconds=3.0), "audio/wav")}, data={"name": "PV2"}
+    ).json()
+
+    assert client.get("/preview").status_code == 422
+    assert client.get(f"/preview?voice_id={voice['id']}&voice_preset=Trúc Ly").status_code == 422
+    assert client.get("/preview?voice_id=missing").status_code == 404
 
 
 def _make_wav(seconds: float) -> bytes:
