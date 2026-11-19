@@ -258,5 +258,43 @@
     "error": null,
     "sample_rate": 24000,
     "synth_seconds": 202.19
+  },
+  "00add13315ef": {
+    "id": "00add13315ef",
+    "text": "Xin ch\u00e0o! \u0110\u00e2y l\u00e0 gi\u1ecdng n\u00f3i ti\u1ebfng Vi\u1ec7t \u0111\u01b0\u1ee3c t\u1ea1o b\u1eb1ng OmniVoice.",
+    "voice_id": "",
+    "voice_preset": "M\u1ef9 Duy\u00ean",
+    "language": "vi",
+    "speed": 1.0,
+    "temperature": 0.75,
+    "seed": null,
+    "status": "failed",
+    "progress": 0.0,
+    "created_at": "2026-11-18T21:43:30.835213+00:00",
+    "started_at": "2026-11-18T21:43:30.836174+00:00",
+    "finished_at": "2026-11-18T21:43:30.855044+00:00",
+    "audio_path": null,
+    "duration_seconds": null,
+    "error": "Unsupported instruct items found in female, young adult, clear voice, moderate pitch:\n  'clear voice' -> 'clear voice' (unsupported)\n\nValid English items: american accent, australian accent, british accent, canadian accent, child, chinese accent, elderly, female, high pitch, indian accent, japanese accent, korean accent, low pitch, male, middle-aged, moderate pitch, portuguese accent, russian accent, teenager, very high pitch, very low pitch, whisper, young adult\nValid Chinese items: \u4e1c\u5317\u8bdd\uff0c\u4e2d\u5e74\uff0c\u4e2d\u97f3\u8c03\uff0c"
+  },
+  "32465c4e45be": {
+    "id": "32465c4e45be",
+    "text": "Xin ch\u00e0o! \u0110\u00e2y l\u00e0 gi\u1ecdng n\u00f3i ti\u1ebfng Vi\u1ec7t \u0111\u01b0\u1ee3c t\u1ea1o b\u1eb1ng OmniVoice.",
+    "voice_id": "",
+    "voice_preset": "M\u1ef9 Duy\u00ean",
+    "language": "vi",
+    "speed": 1.0,
+    "temperature": 0.75,
+    "seed": null,
+    "status": "done",
+    "progress": 1.0,
+    "created_at": "2026-11-18T21:45:22.508955+00:00",
+    "started_at": "2026-11-18T21:45:22.510953+00:00",
+    "finished_at": "2026-11-18T21:45:54.575961+00:00",
+    "audio_path": "F:\\Projects\\voice-ai\\backend\\data\\audio\\32465c4e45be.wav",
+    "duration_seconds": 3.62,
+    "error": null,
+    "sample_rate": 24000,
+    "synth_seconds": 32.06
   }
 }

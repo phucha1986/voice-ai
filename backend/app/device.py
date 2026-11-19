@@ -1,8 +1,8 @@
 """Device reporting for the health endpoint.
 
-VieNeu-TTS runs on a torch-free ONNX CPU runtime, so the backend is always CPU.
-``VOICE_AI_DEVICE`` is honoured for compatibility; ``cpu`` is the only value it
-accepts.
+OmniVoice runs under PyTorch. This machine has an AMD GPU with no CUDA
+support, so the engine is pinned to CPU float32. ``VOICE_AI_DEVICE`` is
+honoured for compatibility; ``cpu`` is the only value it accepts.
 """
 
 from __future__ import annotations
@@ -23,11 +23,11 @@ class DeviceInfo:
 
 
 def resolve_device() -> DeviceInfo:
-    """VieNeu is CPU-only (ONNX Runtime); report the CPU device."""
+    """OmniVoice is pinned to CPU (PyTorch float32); report the CPU device."""
     forced = os.environ.get("VOICE_AI_DEVICE", "").strip().lower()
     if forced and forced != "cpu":
         raise RuntimeError(
-            f"VOICE_AI_DEVICE={forced} is unsupported: VieNeu runs on CPU only"
+            f"VOICE_AI_DEVICE={forced} is unsupported: OmniVoice runs on CPU here"
         )
     suffix = " [forced]" if forced == "cpu" else ""
-    return DeviceInfo("cpu", "cpu", f"CPU (ONNX Runtime){suffix}")
+    return DeviceInfo("cpu", "cpu", f"CPU (PyTorch float32){suffix}")

@@ -42,7 +42,7 @@ export interface Health {
   gpu: boolean;
   ffmpeg: boolean;
   model_loaded: boolean;
-  vieneu_ready: boolean;
+  engine_ready: boolean;
   languages: string[];
   queued: number;
 }

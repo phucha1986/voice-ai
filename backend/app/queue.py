@@ -1,8 +1,8 @@
 """Background generation queue.
 
 Jobs are enqueued by the API and drained by a small pool of worker threads.
-VieNeu is not reentrant, so the engine lock serialises actual inference; extra
-workers mainly keep the queue draining while a job is waiting on the lock.
+OmniVoice is not reentrant, so the engine lock serialises actual inference;
+extra workers mainly keep the queue draining while a job is waiting on the lock.
 """
 
 from __future__ import annotations
@@ -79,7 +79,7 @@ class Queue:
             return
         preset = job.get("voice_preset")
         if preset:
-            # Built-in VieNeu voice: no uploaded reference to look up.
+            # Built-in voice-design preset: no uploaded reference to look up.
             ref_path = ""
         else:
             voice = store.get_voice(job["voice_id"])

@@ -23,35 +23,70 @@ PREVIEW_TEXT = (
 
 # --- Model -------------------------------------------------------------
 
-# VieNeu-TTS is the only engine: Vietnamese voice cloning on a torch-free ONNX
-# CPU runtime (https://github.com/pitvnga1/vieneu-tts). Its phonemizer is
-# phoneme-level (sea-g2p), so Vietnamese compound words ("nhanh nhẹn") are read
-# as one word instead of one syllable per token.
+# OmniVoice (k2-fsa/OmniVoice) is a 0.6B diffusion LM TTS; this backend uses
+# the Vietnamese fine-tune splendor1811/omnivoice-vietnamese (Apache-2.0),
+# trained on dolly-audio-1000h-vietnamese. Output is native 24 kHz, and voices
+# are cloned from a reference clip via a cached VoiceClonePrompt.
 DEFAULT_LANGUAGE = os.environ.get("VOICE_AI_LANGUAGE", "vi")
 VI_LANGUAGE = "vi"
-# VieNeu speaks Vietnamese only — there is no other language to offer.
+# The Vietnamese fine-tune is served for Vietnamese only.
 SUPPORTED_LANGUAGES = [VI_LANGUAGE]
+# OmniVoice expects full language names; map the API's short codes onto them.
+LANGUAGE_NAMES = {"vi": "vietnamese"}
 
-# "v3turbo" (48 kHz, best quality) or "v3nano" (24 kHz, 48M params, for weak CPUs).
-VIENEU_MODE = os.environ.get("VOICE_AI_VIENEU_MODE", "v3turbo")
-# ONNX weights for v3turbo. Measured on a 6-core CPU (blocking infer, RTF =
-# synthesis seconds / audio seconds): fp32 ~0.60-0.63, int8 ~0.38-0.43 (~1.45x
-# faster). int8 needs a VNNI-capable CPU and drops tone-mark fidelity on
-# compound words ("nhanh nhẹn" comes back as "nhanh nhẹ"), so fp32 stays default
-# and int8 is opt-in when speed matters more than pronunciation.
-VIENEU_PRECISION = os.environ.get("VOICE_AI_VIENEU_PRECISION", "fp32")
-# ONNX Runtime intra-op threads; 0 = about half the physical cores, which is the
-# fastest setting measured (3 threads is ~25% slower, 12 threads is no faster).
-VIENEU_THREADS = int(os.environ.get("VOICE_AI_VIENEU_THREADS", "0"))
-# Load VieNeu (and enrol the newest voice) in the background at startup instead
-# of on the first job, which otherwise pays ~12 s of model download plus ~2 s of
-# reference enrolment. Set VOICE_AI_VIENEU_PRELOAD=0 to keep it lazy.
-VIENEU_PRELOAD = os.environ.get("VOICE_AI_VIENEU_PRELOAD", "1") != "0"
+OMNIVOICE_MODEL = os.environ.get(
+    "VOICE_AI_OMNIVOICE_MODEL", "splendor1811/omnivoice-vietnamese"
+)
+# Diffusion denoising steps: 32 is the upstream default (best quality). Lower
+# values (e.g. 8-16) trade quality for speed on CPU.
+OMNIVOICE_NUM_STEP = int(os.environ.get("VOICE_AI_OMNIVOICE_NUM_STEP", "32"))
+# Whisper model used to auto-transcribe uploaded reference audio when building
+# a voice clone prompt. large-v3-turbo is the upstream default and handles
+# Vietnamese well; it downloads ~1.6 GB on first use.
+OMNIVOICE_ASR_MODEL = os.environ.get(
+    "VOICE_AI_OMNIVOICE_ASR_MODEL", "openai/whisper-large-v3-turbo"
+)
+# Load OmniVoice (and warm the newest voice prompt) in the background at
+# startup instead of on the first job, which otherwise pays minutes of model
+# download plus ASR transcription. Set VOICE_AI_PRELOAD=0 to keep it lazy.
+OMNIVOICE_PRELOAD = os.environ.get("VOICE_AI_PRELOAD", "1") != "0"
+
+# Built-in voices ("giọng dựng sẵn"). OmniVoice has no speaker presets, so
+# these are voice-design instructions fed to ``generate(instruct=...)``.
+# Voice design was trained on zh/en descriptors, so the instructs stay English;
+# quality on the Vietnamese fine-tune is unverified — cloning is the reliable path.
+OMNIVOICE_PRESETS: dict[str, dict] = {
+    "Mỹ Duyên": {
+        "instruct": "female, young adult, moderate pitch",
+        "description": "Giọng nữ trong trẻo, phù hợp đọc truyện",
+        "gender": "female",
+        "featured": 1,
+    },
+    "Hoàng Nam": {
+        "instruct": "male, young adult, moderate pitch",
+        "description": "Giọng nam rõ ràng, trung bình",
+        "gender": "male",
+        "featured": 2,
+    },
+    "Thu Hà": {
+        "instruct": "female, middle-aged, low pitch",
+        "description": "Giọng nữ trầm, ấm",
+        "gender": "female",
+        "featured": 3,
+    },
+    "Đức Minh": {
+        "instruct": "male, middle-aged, very low pitch",
+        "description": "Giọng nam trầm, chậm rãi",
+        "gender": "male",
+        "featured": None,
+    },
+}
 
 # --- Audio -------------------------------------------------------------
 
-# VieNeu v3 Turbo outputs at 48 kHz and is downsampled to this rate before
-# saving; reference audio is normalised to this rate as well.
+# OmniVoice outputs 24 kHz natively; reference audio is normalised to this
+# rate as well. A resample is kept as a safety net if the audio tokenizer ever
+# reports a different rate.
 TARGET_SAMPLE_RATE = 24000
 MIN_REF_SECONDS = 2.0
 MAX_REF_SECONDS = float(os.environ.get("VOICE_AI_MAX_REF_SECONDS", 30.0))
@@ -59,8 +94,9 @@ MAX_UPLOAD_BYTES = int(os.environ.get("VOICE_AI_MAX_UPLOAD_BYTES", 25 * 1024 * 1
 
 ALLOWED_EXTENSIONS = {".wav", ".mp3", ".ogg", ".flac", ".m4a", ".aac", ".opus", ".webm", ".mp4", ".json"}
 
-# Generated audio is saved exactly as VieNeu emits it: no noise gate and no gap
-# collapsing. VieNeu denoises the reference itself (``denoise=True``).
+# Generated audio is saved exactly as OmniVoice emits it: no noise gate and no
+# gap collapsing. OmniVoice trims/denoises the reference itself when building a
+# voice clone prompt (``preprocess_prompt=True``).
 
 # --- Queue -------------------------------------------------------------
 

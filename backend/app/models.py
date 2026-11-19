@@ -19,7 +19,7 @@ class VoiceOut(BaseModel):
 
 
 class PresetVoiceOut(BaseModel):
-    """A built-in VieNeu voice (no reference upload needed)."""
+    """A built-in voice-design preset (no reference upload needed)."""
 
     name: str
     description: str = ""
@@ -63,7 +63,7 @@ class HealthOut(BaseModel):
     model_loaded: bool
     languages: list[str]
     queued: int
-    vieneu_ready: bool = False
+    engine_ready: bool = False
 
 
 class LanguagesOut(BaseModel):

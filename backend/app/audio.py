@@ -4,10 +4,11 @@ Pipeline for an uploaded reference clip:
 
 1. Decode to mono float32 PCM.
 2. Enforce the min/max reference duration.
-3. Write a WAV that VieNeu consumes as ``ref_audio``.
+3. Write a WAV that OmniVoice consumes as ``ref_audio``.
 
-No other cleanup is applied: VieNeu denoises the reference itself
-(``denoise=True``), and generated audio is saved exactly as the model emits it.
+No other cleanup is applied: OmniVoice trims/denoises the reference itself when
+building a voice clone prompt (``preprocess_prompt=True``), and generated audio
+is saved exactly as the model emits it.
 """
 
 from __future__ import annotations
@@ -98,8 +99,9 @@ def fit_duration(audio: np.ndarray, sample_rate: int = TARGET_SAMPLE_RATE) -> np
 def preprocess_reference(source: Path, dest: Path, sample_rate: int = TARGET_SAMPLE_RATE) -> dict:
     """Decode ``source`` and write ``dest`` as a WAV reference clip.
 
-    VieNeu denoises the reference during enrolment, so the clip is passed
-    through unmodified apart from the duration limits.
+    OmniVoice trims and denoises the reference when building a voice clone
+    prompt, so the clip is passed through unmodified apart from the duration
+    limits.
     """
     audio = decode_to_mono(source, sample_rate)
     audio = fit_duration(audio, sample_rate)

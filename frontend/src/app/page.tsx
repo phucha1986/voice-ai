@@ -30,7 +30,7 @@ const STATUS_LABELS: Record<string, string> = {
   cancelled: "đã hủy",
 };
 
-// VieNeu speaks Vietnamese only; job metadata is shown in Vietnamese.
+// OmniVoice Vietnamese speaks Vietnamese only; job metadata is shown in Vietnamese.
 const LANGUAGE_LABEL = "Tiếng Việt";
 
 // Backend preset metadata uses English gender codes.
@@ -50,7 +50,7 @@ export default function Home() {
   const [uploading, setUploading] = useState(false);
 
   const [text, setText] = useState(
-    "Xin chào! Đây là giọng nói được nhân bản bằng VieNeu trên máy của tôi.",
+    "Xin chào! Đây là giọng nói được tạo bằng OmniVoice trên máy của tôi.",
   );
   const [voiceId, setVoiceId] = useState("");
   const [presets, setPresets] = useState<PresetVoice[]>([]);
@@ -116,7 +116,7 @@ export default function Home() {
     }
   }, []);
 
-  // Giọng dựng sẵn của VieNeu — chỉ dùng cho tiếng Việt.
+  // Giọng dựng sẵn của OmniVoice — chỉ dùng cho tiếng Việt.
   const refreshPresets = useCallback(async () => {
     setPresetsLoading(true);
     try {
@@ -147,9 +147,9 @@ export default function Home() {
     refreshJobs();
   }, [refreshVoices, refreshPresets, refreshJobs]);
 
-  // VieNeu khởi động nền sau khi server bật; polling cho tới khi sẵn sàng.
+  // OmniVoice khởi động nền sau khi server bật; polling cho tới khi sẵn sàng.
   useEffect(() => {
-    if (health === null || health.vieneu_ready) {
+    if (health === null || health.engine_ready) {
       return;
     }
     const timer = setInterval(() => {
@@ -323,7 +323,7 @@ export default function Home() {
       <div className="header">
         <div>
           <h1>Voice AI</h1>
-          <p className="tagline">Nhân bản giọng nói với VieNeu-TTS — tải lên audio tham chiếu, nhập văn bản, nhận giọng nói.</p>
+          <p className="tagline">Tổng hợp giọng nói tiếng Việt với OmniVoice — tải lên audio tham chiếu, nhập văn bản, nhận giọng nói.</p>
         </div>
         <div className="health" data-pw="health">
           {health === null ? (
@@ -339,8 +339,8 @@ export default function Home() {
               <span className={health.model_loaded ? "pill ok" : "pill"} data-pw="health-model">
                 model {health.model_loaded ? "đã nạp" : "chưa nạp"}
               </span>
-              <span className={health.vieneu_ready ? "pill ok" : "pill"} data-pw="health-vi-engine">
-                VieNeu {health.vieneu_ready ? "sẵn sàng" : "đang khởi động…"}
+              <span className={health.engine_ready ? "pill ok" : "pill"} data-pw="health-vi-engine">
+                OmniVoice {health.engine_ready ? "sẵn sàng" : "đang khởi động…"}
               </span>
               <span className={health.ffmpeg ? "pill ok" : "pill bad"} data-pw="health-ffmpeg">
                 ffmpeg {health.ffmpeg ? "sẵn sàng" : "thiếu"}
@@ -427,7 +427,7 @@ export default function Home() {
           {presetsLoading ? (
             <p className="empty">Đang tải danh sách giọng dựng sẵn…</p>
           ) : presets.length === 0 ? (
-            <p className="empty">Chưa có giọng dựng sẵn (VieNeu chưa sẵn sàng).</p>
+            <p className="empty">Chưa có giọng dựng sẵn (OmniVoice chưa sẵn sàng).</p>
           ) : (
             presets.map((p) => (
               <label className="voice-radio" key={p.name} data-pw={`voice-radio-${p.name}`}>

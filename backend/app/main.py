@@ -1,9 +1,9 @@
-"""FastAPI backend for the Voice AI app (VieNeu-TTS engine).
+"""FastAPI backend for the Voice AI app (OmniVoice Vietnamese engine).
 
 Endpoints:
   GET  /health                     server + device status
   GET  /languages                  supported languages (Vietnamese only)
-  GET  /presets                    built-in VieNeu voices (Vietnamese presets)
+  GET  /presets                    built-in voice-design presets
   POST /voices                     upload reference audio -> preprocess -> store
   GET  /voices                     list voices
   GET  /voices/{id}                voice metadata
@@ -39,11 +39,11 @@ from .config import (
     DEFAULT_LANGUAGE,
     MAX_TEXT_CHARS,
     MAX_UPLOAD_BYTES,
+    OMNIVOICE_MODEL,
+    OMNIVOICE_PRELOAD,
     PREVIEW_DIR,
     PREVIEW_TEXT,
     SUPPORTED_LANGUAGES,
-    VIENEU_MODE,
-    VIENEU_PRELOAD,
     TMP_DIR,
     VOICES_DIR,
 )
@@ -63,10 +63,11 @@ async def lifespan(_app: FastAPI):
     n = generation_queue.requeue_pending()
     if n:
         logger.info("Requeued %d pending job(s)", n)
-    if VIENEU_PRELOAD:
-        # VieNeu is CPU-only and takes ~12 s to load plus ~13 s to enrol a
-        # reference, so warm it in the background instead of on the first job.
-        _spawn_preload(_preload_vieneu)
+    if OMNIVOICE_PRELOAD:
+        # OmniVoice takes minutes to download on first start and Whisper ASR
+        # transcribes each new reference, so warm both in the background
+        # instead of on the first job.
+        _spawn_preload(_preload_engine)
     yield
     generation_queue.stop()
 
@@ -76,25 +77,25 @@ def _spawn_preload(target: Callable[[], None]) -> None:
     threading.Thread(target=target, daemon=True).start()
 
 
-def _preload_vieneu() -> None:
-    """Load VieNeu and enrol the newest voice reference, off the event loop."""
+def _preload_engine() -> None:
+    """Load OmniVoice and warm the newest voice's clone prompt, off the event loop."""
     try:
         voices = store.list_voices()
         if voices:
-            engine.enrol_vieneu_reference(voices[0]["ref_path"])
+            engine.warm_reference(voices[0]["ref_path"], voices[0]["id"])
         else:
-            engine.load_vieneu()
-        logger.info("VieNeu preloaded")
+            engine.load()
+        logger.info("OmniVoice preloaded")
     except Exception as exc:  # noqa: BLE001
-        logger.warning("VieNeu preload failed: %s", exc)
+        logger.warning("OmniVoice preload failed: %s", exc)
 
 
-def _enrol_new_voice(ref_path: str) -> None:
+def _enrol_new_voice(ref_path: str, voice_id: str) -> None:
     try:
-        engine.enrol_vieneu_reference(ref_path)
-        logger.info("VieNeu enrolled new reference %s", ref_path)
+        engine.warm_reference(ref_path, voice_id)
+        logger.info("OmniVoice prompt built for voice %s (%s)", voice_id, ref_path)
     except Exception as exc:  # noqa: BLE001
-        logger.warning("VieNeu enrolment failed for %s: %s", ref_path, exc)
+        logger.warning("OmniVoice prompt build failed for %s: %s", ref_path, exc)
 
 
 app = FastAPI(title="Voice AI", version="1.0.0", lifespan=lifespan)
@@ -115,16 +116,16 @@ def health() -> HealthOut:
     info = engine.device_info
     return HealthOut(
         ok=True,
-        model=f"vieneu-{VIENEU_MODE}",
+        model=f"omnivoice-{OMNIVOICE_MODEL}",
         device=info.device,
         backend=info.backend,
         device_description=info.description,
         gpu=info.is_gpu,
         ffmpeg=ffmpeg_path() is not None,
-        model_loaded=engine.vieneu_loaded,
+        model_loaded=engine.engine_ready,
         languages=list(SUPPORTED_LANGUAGES),
         queued=store.queued_count(),
-        vieneu_ready=engine.vieneu_loaded,
+        engine_ready=engine.engine_ready,
     )
 
 
@@ -135,12 +136,8 @@ def languages() -> LanguagesOut:
 
 @app.get("/presets", response_model=list[PresetVoiceOut])
 def presets() -> list[PresetVoiceOut]:
-    """Built-in VieNeu voices. Loading VieNeu takes ~12 s on first call; the
-    startup preload thread normally warms it before the first request."""
-    try:
-        return [PresetVoiceOut(**p) for p in engine.preset_voices()]
-    except Exception as exc:  # noqa: BLE001
-        raise HTTPException(503, f"VieNeu chưa sẵn sàng: {exc}") from exc
+    """Built-in voice-design presets (no reference upload needed)."""
+    return [PresetVoiceOut(**p) for p in engine.preset_voices()]
 
 
 # --- Voices ------------------------------------------------------------
@@ -182,11 +179,11 @@ async def create_voice(file: UploadFile = File(...), name: str | None = Form(Non
         },
     )
     logger.info("Voice %s created (%.1fs reference)", record["id"], meta["duration_seconds"])
-    if VIENEU_PRELOAD:
-        # Enrol the new reference in the background: VieNeu denoises + encodes
-        # each new clip on first use (~13 s), which would otherwise land on the
-        # first job generated from this voice.
-        _spawn_preload(lambda: _enrol_new_voice(str(ref_path)))
+    if OMNIVOICE_PRELOAD:
+        # Build the clone prompt in the background: Whisper transcribes the
+        # reference on first use, which would otherwise land on the first job
+        # generated from this voice.
+        _spawn_preload(lambda: _enrol_new_voice(str(ref_path), record["id"]))
     return VoiceOut(
         id=record["id"],
         name=record["name"],
@@ -291,8 +288,8 @@ def preview(voice_id: str | None = None, voice_preset: str | None = None) -> Fil
 def delete_voice(voice_id: str) -> dict:
     v = _voice_or_404(voice_id)
     Path(v["ref_path"]).unlink(missing_ok=True)
-    # VieNeu caches reference enrolment internally by clip content, so there is
-    # no voice-latent file to clean up here.
+    # Drop the cached voice clone prompt with the voice.
+    engine.drop_prompt(voice_id)
     store.delete_voice(voice_id)
     return {"deleted": voice_id}
 
@@ -306,11 +303,11 @@ def generate(req: GenerateRequest) -> JobOut:
     if req.language != DEFAULT_LANGUAGE:
         raise HTTPException(
             400,
-            f"Ngôn ngữ '{req.language}' không được hỗ trợ. VieNeu chỉ nói "
+            f"Ngôn ngữ '{req.language}' không được hỗ trợ. Model tiếng Việt chỉ nói "
             f"tiếng Việt ('{DEFAULT_LANGUAGE}').",
         )
     if preset:
-        # Built-in VieNeu voice.
+        # Built-in voice-design preset.
         if not engine.has_preset(preset):
             raise HTTPException(404, f"Không tìm thấy giọng dựng sẵn '{preset}'")
         voice_id = ""
